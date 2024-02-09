@@ -76,37 +76,49 @@ def acc_fig(t, m, name):
 # acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
 
 
-# def ARF_ADWIN(X_train, y_train, X_test, y_test):
+def parallel(model,X_train, y_train, X_test, y_test):
     
-#     metric1 = metrics.Accuracy() 
+    metric = metrics.Accuracy() 
     
-#     hat1 = ensemble.AdaptiveRandomForestClassifier(n_models=3) # ARF-ADWIN
+    # hat = ensemble.AdaptiveRandomForestClassifier(n_models=3) # ARF-ADWIN
     
-#     # learn the training set
-#     for xi1, yi1 in stream.iter_pandas(X_train, y_train):
-#         hat1.learn_one(xi1,yi1)
+    # learn the training set
+    for xi1, yi1 in stream.iter_pandas(X_train, y_train):
+        model.learn_one(xi1,yi1)
+
+    y_preds = []
+    y_probs = []
+    metrics = []
+    errors = []
 
 #     # Predict the test set
-#     for xi, yi in stream.iter_pandas(X_test, y_test):
+    for xi, yi in stream.iter_pandas(X_test, y_test):
         
-#         # predict the labels
-#         y_pred1= hat1.predict_one(xi) 
-#         y_prob1= hat1.predict_proba_one(xi) 
-#         hat1.learn_one(xi,yi)
+        # predict the labels
+        y_pred1= model.predict_one(xi) 
+        y_prob1= model.predict_proba_one(xi) 
+        model.learn_one(xi,yi)
 
-#         # Record their real-time accuracy
-#         metric1 = metric1.update(yi, y_pred1)
+        # Record their real-time accuracy
+        metric = metric.update(yi, y_pred1)
        
-#         # Calculate the real-time error rates learner
-#         e1 = 1-metric1.get()
+        # Calculate the real-time error rates learner
+        e = 1-metric.get()
 
-#         # Make ensemble predictions by the classification probabilities
-#         if  y_pred1 == 1:
-#             ypro10=1-y_prob1[1]
-#             ypro11=y_prob1[1]
-#         else:
-#             ypro10=y_prob1[0]
-#             ypro11=1-y_prob1[0]
+        # Make ensemble predictions by the classification probabilities
+        if  y_pred1 == 1:
+            ypro10=1-y_prob1[1]
+            ypro11=y_prob1[1]
+        else:
+            ypro10=y_prob1[0]
+            ypro11=1-y_prob1[0]
+
+        y_preds.append(y_pred1)
+        y_probs.append(ypro10, ypro11)
+        metrics.append(metric.get())
+        errors.append(e)
+    return y_preds, y_probs, metrics, errors
+
 
 def train_model(model, X_train, y_train):
     for xi, yi in stream.iter_pandas(X_train, y_train):
