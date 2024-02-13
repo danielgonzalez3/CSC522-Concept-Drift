@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
 from river import stream
-from river import tree,neighbors,naive_bayes,ensemble,linear_model,forest
+from river import tree,ensemble,forest
 from river.drift import ADWIN
 from river.drift.binary import DDM
 # import lightgbm as lgb
@@ -37,7 +37,7 @@ def adaptive_learning(model, X_train, y_train, X_test, y_test):
     # Predict the test set
     for xi, yi in stream.iter_pandas(X_test, y_test):
         y_pred= model.predict_one(xi)  # Predict the test sample
-        model.learn_one(xi,yi) # Learn the test sample
+        #model.learn_one(xi,yi) # Learn the test sample
         metric.update(yi, y_pred) # Update the real-time accuracy
         t.append(i)
         m.append(metric.get()*100)
@@ -76,10 +76,6 @@ def PWPAE(X_train, y_train, X_test, y_test):
     i=0
     t = []
     m = []
-    m1 = []
-    m2 = []
-    m3 = []
-    m4 = []
     yt = []
     yp = []
 
@@ -100,19 +96,19 @@ def PWPAE(X_train, y_train, X_test, y_test):
         # The four base learner predict the labels
         y_pred1= hat1.predict_one(xi)
         y_prob1= hat1.predict_proba_one(xi)
-        hat1.learn_one(xi,yi)
+        # hat1.learn_one(xi,yi)
 
         y_pred2= hat2.predict_one(xi)
         y_prob2= hat2.predict_proba_one(xi)
-        hat2.learn_one(xi,yi)
+        # hat2.learn_one(xi,yi)
 
         y_pred3= hat3.predict_one(xi)
         y_prob3= hat3.predict_proba_one(xi)
-        hat3.learn_one(xi,yi)
+        # hat3.learn_one(xi,yi)
 
         y_pred4= hat4.predict_one(xi)
         y_prob4= hat4.predict_proba_one(xi)
-        hat4.learn_one(xi,yi)
+        # hat4.learn_one(xi,yi)
 
         # Record their real-time accuracy
         metric1.update(yi, y_pred1)
@@ -173,7 +169,7 @@ def PWPAE(X_train, y_train, X_test, y_test):
             y_prob = y_prob_1
 
         # Update the real-time accuracy of the ensemble model
-        metric = metric.update(yi, y_pred)
+        metric.update(yi, y_pred)
 
         t.append(i)
         m.append(metric.get()*100)
@@ -187,43 +183,54 @@ def PWPAE(X_train, y_train, X_test, y_test):
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
     return t, m
 
+
+    
+
 def main():
     name1 = "ARF-ADWIN model"
+    print('\n',name1)
     model1 = forest.adaptive_random_forest.ARFClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
     t, m1 = adaptive_learning(model1, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name2 = "ARF-DDM model"
+    print('\n',name2)
     model2 = forest.adaptive_random_forest.ARFClassifier(n_models = 3, drift_detector = DDM()) # Define the model
     t, m2 = adaptive_learning(model2, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m2, name2) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name3 = "SRP-ADWIN model"
+    print('\n',name3)
     model3 = ensemble.SRPClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
     t, m3 = adaptive_learning(model3, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m3, name3) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name4 = "SRP-DDM model"
+    print('\n',name4)
     model4 = ensemble.SRPClassifier(n_models = 3, drift_detector = DDM()) # Define the model
     t, m4 = adaptive_learning(model4, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m4, name4) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name5 = "EFDT model"
+    print('\n',name5)
     model5 = tree.HoeffdingAdaptiveTreeClassifier() # Define the model
     t, m5 = adaptive_learning(model5, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m5, name5) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name6 = "HT model"
+    print('\n',name6)
     model6 = tree.HoeffdingTreeClassifier() # Define the model
     t, m6 = adaptive_learning(model6, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m6, name6) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name7 = "LB model"
+    print('\n',name7)
     model7 = ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(),n_models=3) # Define the model
     t, m7 = adaptive_learning(model7, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m7, name7) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name = "Proposed PWPAE model"
+    print('\n',name)
     t, m = PWPAE(X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m, name) # Draw the figure of how the real-time accuracy changes with the number of samples
 
