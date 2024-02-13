@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-# import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
@@ -9,7 +8,6 @@ from river import stream
 from river import tree,ensemble,forest
 from river.drift import ADWIN
 from river.drift.binary import DDM
-# import lightgbm as lgb
 import time
 
 df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
@@ -24,9 +22,9 @@ X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_
 # The argument "model" means an online adaptive learning algorithm
 def adaptive_learning(model, X_train, y_train, X_test, y_test):
     metric = metrics.Accuracy() # Use accuracy as the metric
-    i = 0 # count the number of evaluated data points
-    t = [] # record the number of evaluated data points
-    m = [] # record the real-time accuracy
+    i = 0   # count the number of evaluated data points
+    t = []  # record the number of evaluated data points
+    m = []  # record the real-time accuracy
     yt = [] # record all the true labels of the test set
     yp = [] # record all the predicted labels of the test set
 
@@ -36,9 +34,9 @@ def adaptive_learning(model, X_train, y_train, X_test, y_test):
 
     # Predict the test set
     for xi, yi in stream.iter_pandas(X_test, y_test):
-        y_pred= model.predict_one(xi)  # Predict the test sample
-        #model.learn_one(xi,yi) # Learn the test sample
-        metric.update(yi, y_pred) # Update the real-time accuracy
+        y_pred = model.predict_one(xi) # Predict the test sample
+        model.learn_one(xi,yi)         # Learn the test sample
+        metric.update(yi, y_pred)      # Update the real-time accuracy, note: can we receive y1 on prod?
         t.append(i)
         m.append(metric.get()*100)
         yt.append(yi)
@@ -54,7 +52,6 @@ def adaptive_learning(model, X_train, y_train, X_test, y_test):
 def acc_fig(t, m, name):
     plt.rcParams.update({'font.size': 15})
     plt.figure(1,figsize=(10,6))
-    #sns.set_style("darkgrid")
     plt.clf()
     plt.plot(t,m,'-b',label='Avg Accuracy: %.2f%%'%(m[-1]))
 
@@ -96,19 +93,19 @@ def PWPAE(X_train, y_train, X_test, y_test):
         # The four base learner predict the labels
         y_pred1= hat1.predict_one(xi)
         y_prob1= hat1.predict_proba_one(xi)
-        # hat1.learn_one(xi,yi)
+        hat1.learn_one(xi,yi)
 
         y_pred2= hat2.predict_one(xi)
         y_prob2= hat2.predict_proba_one(xi)
-        # hat2.learn_one(xi,yi)
+        hat2.learn_one(xi,yi)
 
         y_pred3= hat3.predict_one(xi)
         y_prob3= hat3.predict_proba_one(xi)
-        # hat3.learn_one(xi,yi)
+        hat3.learn_one(xi,yi)
 
         y_pred4= hat4.predict_one(xi)
         y_prob4= hat4.predict_proba_one(xi)
-        # hat4.learn_one(xi,yi)
+        hat4.learn_one(xi,yi)
 
         # Record their real-time accuracy
         metric1.update(yi, y_pred1)
@@ -182,9 +179,6 @@ def PWPAE(X_train, y_train, X_test, y_test):
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
     return t, m
-
-
-    
 
 def main():
     name1 = "ARF-ADWIN model"
