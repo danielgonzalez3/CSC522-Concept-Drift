@@ -1,17 +1,18 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
 from river import stream
-from river import tree,neighbors,naive_bayes,ensemble,linear_model
-from river.drift import DDM, ADWIN
-import lightgbm as lgb
+from river import tree,neighbors,naive_bayes,ensemble,linear_model,forest
+from river.drift import ADWIN
+from river.drift.binary import DDM
+# import lightgbm as lgb
 import time
 
-df = pd.read_csv("./sample_data/IoT_2020_b_0.01_fs.csv")
+df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
 # Train-test split
 # 10% training set, and 90% test set
@@ -37,7 +38,7 @@ def adaptive_learning(model, X_train, y_train, X_test, y_test):
     for xi, yi in stream.iter_pandas(X_test, y_test):
         y_pred= model.predict_one(xi)  # Predict the test sample
         model.learn_one(xi,yi) # Learn the test sample
-        metric = metric.update(yi, y_pred) # Update the real-time accuracy
+        metric.update(yi, y_pred) # Update the real-time accuracy
         t.append(i)
         m.append(metric.get()*100)
         yt.append(yi)
@@ -53,7 +54,7 @@ def adaptive_learning(model, X_train, y_train, X_test, y_test):
 def acc_fig(t, m, name):
     plt.rcParams.update({'font.size': 15})
     plt.figure(1,figsize=(10,6))
-    sns.set_style("darkgrid")
+    #sns.set_style("darkgrid")
     plt.clf()
     plt.plot(t,m,'-b',label='Avg Accuracy: %.2f%%'%(m[-1]))
 
@@ -82,9 +83,9 @@ def PWPAE(X_train, y_train, X_test, y_test):
     yt = []
     yp = []
 
-    hat1 = ensemble.AdaptiveRandomForestClassifier(n_models=3) # ARF-ADWIN
+    hat1 = forest.adaptive_random_forest.ARFClassifier(n_models=3) # ARF-ADWIN
     hat2 = ensemble.SRPClassifier(n_models=3) # SRP-ADWIN
-    hat3 = ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # ARF-DDM
+    hat3 = forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # ARF-DDM
     hat4 = ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # SRP-DDM
 
     # The four base learners learn the training set
@@ -114,10 +115,10 @@ def PWPAE(X_train, y_train, X_test, y_test):
         hat4.learn_one(xi,yi)
 
         # Record their real-time accuracy
-        metric1 = metric1.update(yi, y_pred1)
-        metric2 = metric2.update(yi, y_pred2)
-        metric3 = metric3.update(yi, y_pred3)
-        metric4 = metric4.update(yi, y_pred4)
+        metric1.update(yi, y_pred1)
+        metric2.update(yi, y_pred2)
+        metric3.update(yi, y_pred3)
+        metric4.update(yi, y_pred4)
 
         # Calculate the real-time error rates of four base learners
         e1 = 1-metric1.get()
@@ -188,12 +189,12 @@ def PWPAE(X_train, y_train, X_test, y_test):
 
 def main():
     name1 = "ARF-ADWIN model"
-    model1 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
+    model1 = forest.adaptive_random_forest.ARFClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
     t, m1 = adaptive_learning(model1, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name2 = "ARF-DDM model"
-    model2 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = DDM()) # Define the model
+    model2 = forest.adaptive_random_forest.ARFClassifier(n_models = 3, drift_detector = DDM()) # Define the model
     t, m2 = adaptive_learning(model2, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m2, name2) # Draw the figure of how the real-time accuracy changes with the number of samples
 
