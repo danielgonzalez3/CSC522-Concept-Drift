@@ -75,10 +75,10 @@ def PWPAE(X_train, y_train, X_test, y_test):
     i=0
     t = []
     m = []
-    m1 = []
-    m2 = []
-    m3 = []
-    m4 = []
+    # m1 = []
+    # m2 = []
+    # m3 = []
+    # m4 = []
     yt = []
     yp = []
 
@@ -141,18 +141,21 @@ def PWPAE(X_train, y_train, X_test, y_test):
         else:
             ypro10=y_prob1[0]
             ypro11=1-y_prob1[0]
+
         if  y_pred2 == 1:
             ypro20=1-y_prob2[1]
             ypro21=y_prob2[1]
         else:
             ypro20=y_prob2[0]
             ypro21=1-y_prob2[0]
+
         if  y_pred3 == 1:
             ypro30=1-y_prob3[1]
             ypro31=y_prob3[1]
         else:
             ypro30=y_prob3[0]
             ypro31=1-y_prob3[0]
+            
         if  y_pred4 == 1:
             ypro40=1-y_prob4[1]
             ypro41=y_prob4[1]
