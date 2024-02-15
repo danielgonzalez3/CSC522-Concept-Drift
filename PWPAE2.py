@@ -210,7 +210,7 @@ def merge_results(directory='result', output_filename='merged_result.png'):
         img.close()
     
     merged_image.save(os.path.join(directory, output_filename))
-    print(f"Merged image saved as {os.path.join(directory, output_filename)}.")
+    print(f"\n Merged image saved as {os.path.join(directory, output_filename)}.")
 
 def main():
     df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
@@ -235,7 +235,9 @@ def main():
 
     t, m = PWPAE(X_train, y_train, X_test, y_test)
     plot_ensemble(t, m, "IoT_2020-PWPAE")
-    merge_results()
+
+    # TODO: ensure merged_result.png has results stacked
+    merge_results(directory='result', output_filename='IoT_2020-merged-result.png')
 
 if __name__ == "__main__":
     main()
