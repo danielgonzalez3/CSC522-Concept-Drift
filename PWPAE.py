@@ -10,6 +10,8 @@ from river.drift import ADWIN
 from river.drift.binary import DDM
 import time
 
+BATCH_SIZE = 600
+
 df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
 # Train-test split
@@ -17,6 +19,18 @@ df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 X = df.drop(['Label'],axis=1)
 y = df['Label']
 X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
+
+class batch_data:
+    def __init__(self, datasource, interval):
+        self.ds = datasource
+        self.interval = interval
+        self.done = False
+    def gen(self):
+        try:
+            for i in range(self.interval):
+                yield next(self.ds)
+        except StopIteration:
+            self.done = True
 
 # Define a generic adaptive learning function
 # The argument "model" means an online adaptive learning algorithm
@@ -33,15 +47,34 @@ def adaptive_learning(model, X_train, y_train, X_test, y_test):
         model.learn_one(xi1,yi1)
 
     # Predict the test set
-    for xi, yi in stream.iter_pandas(X_test, y_test):
-        y_pred = model.predict_one(xi) # Predict the test sample
-        model.learn_one(xi,yi)         # Learn the test sample
-        metric.update(yi, y_pred)      # Update the real-time accuracy, note: can we receive y1 on prod?
-        t.append(i)
-        m.append(metric.get()*100)
-        yt.append(yi)
-        yp.append(y_pred)
-        i = i+1
+    data = batch_data(stream.iter_pandas(X_test, y_test), BATCH_SIZE)
+    while not data.done:
+        i1 = i
+        batch_pairs = []
+        for xi, yi in data.gen():
+            y_pred = model.predict_one(xi) # Predict the test sample
+            # model.learn_one(xi,yi)         # Learn the test sample
+            metric.update(yi, y_pred)      # Update the real-time accuracy, note: can we receive y1 on prod?
+            t.append(i)
+            m.append(metric.get()*100)
+            yt.append(yi)
+            yp.append(y_pred)
+            batch_pairs.append((xi, yi))
+            i = i+1
+        for j in range(i - i1):
+            model.learn_one(*batch_pairs[j])
+
+
+    # for xi, yi in stream.iter_pandas(X_test, y_test):
+    #     y_pred = model.predict_one(xi) # Predict the test sample
+    #     y_pred = yi
+    #     # model.learn_one(xi,yi)         # Learn the test sample
+    #     metric.update(yi, y_pred)      # Update the real-time accuracy, note: can we receive y1 on prod?
+    #     t.append(i)
+    #     m.append(metric.get()*100)
+    #     yt.append(yi)
+    #     yp.append(y_pred)
+    #     i = i+1
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
