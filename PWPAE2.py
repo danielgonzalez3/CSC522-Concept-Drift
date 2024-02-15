@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
 from river import stream
 from river import tree,ensemble,forest
@@ -218,14 +218,20 @@ def main():
     y = df['Label']
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
 
+    print(dir(tree))
+    print(dir(ensemble))
     models = [
         AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-ARF-ADWIN"),
         AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-ARF-DDM"),
+        AdaptiveModel(forest.aggregated_mondrian_forest.AMFClassifier(n_estimators=10), "IoT_2020-AMF"),
+        AdaptiveModel(tree.ExtremelyFastDecisionTreeClassifier(), "IoT_2020-EFDT"),
+        AdaptiveModel(tree.HoeffdingAdaptiveTreeClassifier(), "IoT_2020-HAT"),
+        AdaptiveModel(tree.HoeffdingTreeClassifier(), "IoT_2020-HTC"),
+        AdaptiveModel(tree.SGTClassifier(), "IoT_2020-SGT"),
+        AdaptiveModel(ensemble.ADWINBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LB-ADWIN-HT"),
+        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LB-HTC"),
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-SRP-ADWIN"),
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-SRP-DDM"),
-        AdaptiveModel(tree.HoeffdingAdaptiveTreeClassifier(), "IoT_2020-EFDT"),
-        AdaptiveModel(tree.HoeffdingTreeClassifier(), "IoT_2020-HT"),
-        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LB")
     ]
 
     for model in models:
