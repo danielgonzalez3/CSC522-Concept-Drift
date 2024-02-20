@@ -17,3 +17,4 @@ RUN mkdir -p /var/lib/src
 WORKDIR /var/lib/src
 
 COPY . /var/lib/src
+RUN pip install -r requirements.txt
