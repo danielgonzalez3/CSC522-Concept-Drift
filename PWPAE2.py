@@ -10,6 +10,7 @@ from river.drift import ADWIN
 from river.drift.binary import DDM
 from PIL import Image
 import os
+import time
 
 class AdaptiveModel:
     def __init__(self, model, name):
@@ -19,10 +20,15 @@ class AdaptiveModel:
         self.history = {'t': [], 'accuracy': []}
 
     def learn(self, X, y):
+        start_time = time.time()
         for xi, yi in stream.iter_pandas(X, y):
             self.model.learn_one(xi, yi)
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"\nLearning for {self.name} took {duration:.2f} seconds\n") 
 
     def evaluate(self, X, y):
+        start_time = time.time()
         true_labels = []
         predicted_labels = []
         for xi, yi in stream.iter_pandas(X, y):
@@ -34,8 +40,10 @@ class AdaptiveModel:
             true_labels.append(yi)
             predicted_labels.append(y_pred)
         
-        # Printing evaluation metrics
-        print(f"\n{self.name}")
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"{self.name}")
+        print(f"Evaluation for {self.name} took {duration:.2f} seconds")
         print("Accuracy:", round(accuracy_score(true_labels, predicted_labels), 4) * 100, "%")
         print("Precision:", round(precision_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
         print("Recall:", round(recall_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
@@ -228,8 +236,13 @@ def main():
         AdaptiveModel(tree.HoeffdingAdaptiveTreeClassifier(), "IoT_2020-HAT"),
         AdaptiveModel(tree.HoeffdingTreeClassifier(), "IoT_2020-HTC"),
         AdaptiveModel(tree.SGTClassifier(), "IoT_2020-SGT"),
-        AdaptiveModel(ensemble.ADWINBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LB-ADWIN-HT"),
-        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LB-HTC"),
+        AdaptiveModel(ensemble.ADWINBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADWIN-BA-HT"),
+        AdaptiveModel(ensemble.ADWINBoostingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADWIN-BO-HT"),
+        AdaptiveModel(ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADA-HT"),
+        AdaptiveModel(ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-BOLE-HT"),
+        AdaptiveModel(ensemble.BaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-BAG-HT"),
+        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LEVBAG-HT"),
+        AdaptiveModel(ensemble.SRPClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-SRP-HT"),
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-SRP-ADWIN"),
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-SRP-DDM"),
     ]
