@@ -14,6 +14,36 @@ from river import tree,neighbors,naive_bayes,ensemble,linear_model
 from river.drift import DDM, ADWIN
 
 import multiprocessing
+import signal
+import sys
+import os
+from functools import partial
+from time import sleep
+
+# class for sending message to subprocess
+class ParentMessage:
+    def __init__(self, xi, yi):
+        self.xi = xi
+        self.yi = yi
+    def __str__(self):
+        return f"xi: {self.xi}, yi: {self.yi}"
+    def __repr__(self):
+        return f"xi: {self.xi}, yi: {self.yi}"
+
+# class for sending message to main process
+class ChildMessage:
+    def __init__(self, worker_id, y_pred, y_prob, ypro0, ypro1, e):
+        self.worker_id = worker_id
+        self.y_pred = y_pred
+        self.y_prob = y_prob
+        self.ypro0 = ypro0
+        self.ypro1 = ypro1
+        self.e = e
+    def __str__(self):
+        return f"worker_id: {self.worker_id}, y_pred: {self.y_pred}, y_prob: {self.y_prob}"
+    def __repr__(self):
+        return f"worker_id: {self.worker_id}, y_pred: {self.y_pred}, y_prob: {self.y_prob}"
+
 
 df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
@@ -68,103 +98,153 @@ def acc_fig(t, m, name):
     plt.draw()
 
 
-
-# Define four unique algorithms for demonstration
-# Each takes a value and a weight
-def algorithm_1(value,model,xi):
-    y_pred1= model.predict_one(xi) 
-    return (value + 1)
-
-def algorithm_2(value,model,xi):
-    return (value * 2) 
-
-def algorithm_3(value,model,xi):
-    return (value - 1)
-
-def algorithm_4(value,model,xi):
-    return (value ** 2) 
-
 # Worker function that processes data with a given algorithm and considers the weight
-def worker(worker_id, data, algorithm, conn, model):
-    response = "okay"
-    
+def worker(lock, worker_id, conn, model):
+    metric = metrics.Accuracy()
+    e = 1 - metric.get()
 
-    
-    for xi1, yi1 in stream.iter_pandas(X_train, y_train):
-        model.learn_one(xi1,yi1)
+    signal.signal(signal.SIGTERM, partial(cleanup,lock, conn))
 
-    for xi, yi in stream.iter_pandas(X_test, y_test):
-            y_pred1= model.predict_one(xi) 
-            conn.send(y_pred1)
-            print(f"Worker {worker_id} sent result: {y_pred1}")
-            response = conn.recv()
-            print("Response: ",response)
+    while True:
+        # receive parent message object
+        p_msg = conn.recv()
+        
+        y_pred = model.predict_one(p_msg.xi)
+        y_prob = model.predict_proba_one(p_msg.xi)
+        
+        model.learn_one(p_msg.xi,p_msg.yi)
+        metric = metric.update(p_msg.yi, y_pred)
+        e = 1 - metric.get()
 
-    # for value in data:
-    #     # Apply the algorithm 
-    #     result = algorithm(value,model)
-    #     # Send result to parent
-    #     conn.send(result)
-    #     # Receive new response from parent
-    #     response = conn.recv()
-    conn.close()
+        if y_pred == 1:
+            ypro0 = 1-y_prob[1]
+            ypro1 = y_prob[1]
+        else:
+            ypro0 = y_prob[0]
+            ypro1 = 1-y_prob[0]
+
+
+        #create child object 
+        msg =   ChildMessage(worker_id, y_pred, y_prob, ypro0, ypro1, e)
+
+        conn.send(msg)
+
+# signal handler to close the connection
+def cleanup(lock,conn,signum, frame):
+    with lock:
+        conn.close()
+        # print("Closed connection")
+        sys.exit(0)
+
+
 
 if __name__ == "__main__":
-    data_array = [1, 2, 3, 4, 5]  # The shared data array
-    algorithms = [algorithm_1, algorithm_2, algorithm_3, algorithm_4]  # The list of algorithms
+    
     models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
-
-
+    
+    # learn the models
+    i = 0
     for xi, yi in stream.iter_pandas(X_train, y_train):
-        processes = []
-        parent_connections = []
-        child_connections = []
-        for i,algorithm in enumerate(algorithms):
+        i = i + 1
+        for model in models:
+            model.learn_one(xi,yi)
+   
+    j = 0
+    processes = []
+    parent_connections = []
+    child_connections = []
+    lock = multiprocessing.Lock()
+
+    # generate processes for each model
+    for model in models:
+            j = j + 1
             parent_conn, child_conn = multiprocessing.Pipe()
             parent_connections.append(parent_conn)
             child_connections.append(child_conn)
-            # model.learn_one(xi,yi)
-            process = multiprocessing.Process(target=worker, args=(i, data_array, algorithm, child_conn, models[i]))
+ 
+            process = multiprocessing.Process(target=worker, args=(lock,j, child_conn, model))
             processes.append(process)
             process.start()
+    k = 0
+    t = []
+    m = []
+    yt = []
+    yp = []
 
-    # for i, algorithm in enumerate(algorithms):
-    #     parent_conn, child_conn = multiprocessing.Pipe()
-    #     parent_connections.append(parent_conn)
-    #     child_connections.append(child_conn)
-        
-    #     process = multiprocessing.Process(target=worker, args=(i, data_array, algorithm, child_conn, models[i]))
-    #     processes.append(process)
-    #     process.start()
-
-    for _ in stream.iter_pandas(X_test, y_test):
+    # send data to each process and receive the results
+    for xi, yi in stream.iter_pandas(X_train, y_train):
         results = []
-        # Collect results from children
+        metric = metrics.Accuracy()
+
+        msg = ParentMessage(xi, yi)
+        for _, conn in enumerate(parent_connections):
+           conn.send(msg)
+        
         for conn in parent_connections:
+            # receive child message object
             results.append(conn.recv())
-
-        for i, conn in enumerate(parent_connections):
-            conn.send("okay")
-
-    # Example loop for 5 iterations assuming 5 elements in the data array
-    # for _ in range(len(data_array)):
-    #     results = []
-    #     # Collect results from children
-    #     for conn in parent_connections:
-    #         results.append(conn.recv())
         
-    #     # Evaluate results and send back new weights (simplified example)
-    #     # Here, you would insert logic to evaluate results and decide on weights
-    #     # weights = [1, 1, 1, 1]  # Placeholder for new weights based on evaluation
+        ep = 0.001
+        # linear version
+        # ea = 1/(e1+ep) + 1/(e2+ep) + 1/(e3+ep) + 1/(e4+ep)
+        # parallel version
+        ea = 0
+        for result in results:
+            ea += 1/(result.e+ep)
+
+        # linear version
+        # w1 = (1/(e1+ep))/ea
+        #parallel version
+        w = []
+        for result in results:
+            w.append((1/(result.e+ep))/ea)  
+
+        # linear version
+        #y_prob_0 = w1*ypro10 + w2*ypro20 + w3*ypro30 + w4*ypro40
+        #y_prob_1 = w1*ypro11 + w2*ypro21 + w3*ypro31 + w4*ypro41
+        #parallel version
+        y_prob_0 = 0
+        y_prob_1 = 0
+        for i, result in enumerate(results):
+            y_prob_0 += w[i]*result.ypro0
+            y_prob_1 += w[i]*result.ypro1
+
+        if y_prob_0 > y_prob_1:
+            y_pred = 0
+            y_prob = y_prob_0
+        else:
+            y_pred = 1
+            y_prob = y_prob_1
+
+        metric = metric.update(yi, y_pred)
         
-    #     for i, conn in enumerate(parent_connections):
-    #         # conn.send(weights[i])
-    #         conn.send("okay")
-    
+        t.append(k)
+        m.append(metric.get()*100)
+        yt.append(yi)
+        yp.append(y_pred)
+        k = k+1
+        
+        # print(results)
+
+    print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
+    print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
+    print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
+    print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
+
+    name = "Parallel"
+    acc_fig(t, m, name)
+    plt.show()
+
+    # send sigterm to all processes
+    for proc in processes:
+        os.kill(proc.pid, signal.SIGTERM)
+
+
     # Close parent connections and join processes
     for conn in parent_connections:
         conn.close()
     
+    # Wait for all processes to finish
     for process in processes:
         process.join()
 

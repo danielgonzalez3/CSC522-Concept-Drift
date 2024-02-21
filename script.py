@@ -84,10 +84,6 @@ def PWPAE(X_train, y_train, X_test, y_test):
     i=0
     t = []
     m = []
-    m1 = []
-    m2 = []
-    m3 = []
-    m4 = []
     yt = []
     yp = []
 
