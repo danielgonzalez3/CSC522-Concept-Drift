@@ -71,7 +71,6 @@ def acc_fig(t, m, name):
 # Worker function that processes data with a given algorithm and considers the weight
 def worker(lock, worker_id, conn, model):
     metric = metrics.Accuracy()
-    e = 1 - metric.get()
 
     signal.signal(signal.SIGTERM, partial(cleanup,lock, conn))
 
@@ -103,7 +102,6 @@ def worker(lock, worker_id, conn, model):
 def cleanup(lock,conn,signum, frame):
     with lock:
         conn.close()
-        # print("Closed connection")
         sys.exit(0)
 
 
@@ -154,19 +152,21 @@ if __name__ == "__main__":
             # receive child message object
             results.append(conn.recv())
         
+        sorted_results = sorted(results, key=lambda x: x.worker_id)
+
         ep = 0.001
         # linear version
         # ea = 1/(e1+ep) + 1/(e2+ep) + 1/(e3+ep) + 1/(e4+ep)
         # parallel version
         ea = 0
-        for result in results:
+        for result in sorted_results:
             ea += 1/(result.e+ep)
 
         # linear version
         # w1 = (1/(e1+ep))/ea
         #parallel version
         w = []
-        for result in results:
+        for result in sorted_results:
             w.append((1/(result.e+ep))/ea)  
 
         # linear version
@@ -175,16 +175,14 @@ if __name__ == "__main__":
         #parallel version
         y_prob_0 = 0
         y_prob_1 = 0
-        for i, result in enumerate(results):
+        for i, result in enumerate(sorted_results):
             y_prob_0 += w[i]*result.ypro0
             y_prob_1 += w[i]*result.ypro1
 
         if y_prob_0 > y_prob_1:
             y_pred = 0
-            y_prob = y_prob_0
         else:
             y_pred = 1
-            y_prob = y_prob_1
 
         metric = metric.update(yi, y_pred)
         
@@ -201,9 +199,6 @@ if __name__ == "__main__":
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
 
-    name = "Parallel"
-    acc_fig(t, m, name)
-    plt.show()
 
     # send sigterm to all processes
     for proc in processes:
@@ -218,4 +213,8 @@ if __name__ == "__main__":
     for process in processes:
         process.join()
 
-    print("Processing complete.")
+    name = "Parallel"
+    acc_fig(t, m, name)
+    plt.show()
+
+    # print("Processing complete.")
