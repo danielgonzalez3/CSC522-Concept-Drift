@@ -20,35 +20,6 @@ X = df.drop(['Label'],axis=1)
 y = df['Label']
 X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
 
-# Define a generic adaptive learning function
-# The argument "model" means an online adaptive learning algorithm
-def adaptive_learning(model, X_train, y_train, X_test, y_test):
-    metric = metrics.Accuracy() # Use accuracy as the metric
-    i = 0 # count the number of evaluated data points
-    t = [] # record the number of evaluated data points
-    m = [] # record the real-time accuracy
-    yt = [] # record all the true labels of the test set
-    yp = [] # record all the predicted labels of the test set
-
-    # Learn the training set
-    for xi1, yi1 in stream.iter_pandas(X_train, y_train):
-        model.learn_one(xi1,yi1) 
-
-    # Predict the test set
-    for xi, yi in stream.iter_pandas(X_test, y_test):
-        y_pred= model.predict_one(xi)  # Predict the test sample
-        model.learn_one(xi,yi) # Learn the test sample
-        metric = metric.update(yi, y_pred) # Update the real-time accuracy
-        t.append(i)
-        m.append(metric.get()*100)
-        yt.append(yi)
-        yp.append(y_pred)
-        i = i+1
-    print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
-    print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
-    print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
-    print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
-    return t, m
 
 # Define a figure function that shows the real-time accuracy changes
 def acc_fig(t, m, name):
@@ -65,12 +36,6 @@ def acc_fig(t, m, name):
 
     plt.draw()
 
-
-# # Use the Adaptive Random Forest (ARF) model with ADWIN drift detector
-# name1 = "ARF-ADWIN model"
-# model1 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
-# t, m1 = adaptive_learning(model1, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-# acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
 
 # Define the Performance Weighted Probability Averaging Ensemble (PWPAE) model
 def PWPAE(X_train, y_train, X_test, y_test):

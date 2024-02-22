@@ -111,9 +111,7 @@ if __name__ == "__main__":
     models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
     
     # learn the models
-    i = 0
     for xi, yi in stream.iter_pandas(X_train, y_train):
-        i = i + 1
         for model in models:
             model.learn_one(xi,yi)
    
@@ -122,27 +120,28 @@ if __name__ == "__main__":
     parent_connections = []
     child_connections = []
     lock = multiprocessing.Lock()
+    metric = metrics.Accuracy()
 
-    # generate processes for each model
-    for model in models:
-            j = j + 1
-            parent_conn, child_conn = multiprocessing.Pipe()
-            parent_connections.append(parent_conn)
-            child_connections.append(child_conn)
- 
-            process = multiprocessing.Process(target=worker, args=(lock,j, child_conn, model))
-            processes.append(process)
-            process.start()
-    k = 0
+    i = 0
     t = []
     m = []
     yt = []
     yp = []
 
+    # generate processes for each model
+    for model in models:
+        j = j + 1
+        parent_conn, child_conn = multiprocessing.Pipe()
+        parent_connections.append(parent_conn)
+        child_connections.append(child_conn)
+
+        process = multiprocessing.Process(target=worker, args=(lock,j, child_conn, model))
+        processes.append(process)
+        process.start()
+
     # send data to each process and receive the results
-    for xi, yi in stream.iter_pandas(X_train, y_train):
+    for xi, yi in stream.iter_pandas(X_test, y_test):
         results = []
-        metric = metrics.Accuracy()
 
         msg = ParentMessage(xi, yi)
         for _, conn in enumerate(parent_connections):
@@ -155,30 +154,19 @@ if __name__ == "__main__":
         sorted_results = sorted(results, key=lambda x: x.worker_id)
 
         ep = 0.001
-        # linear version
-        # ea = 1/(e1+ep) + 1/(e2+ep) + 1/(e3+ep) + 1/(e4+ep)
-        # parallel version
         ea = 0
         for result in sorted_results:
             ea += 1/(result.e+ep)
-
-        # linear version
-        # w1 = (1/(e1+ep))/ea
-        #parallel version
+        
         w = []
         for result in sorted_results:
-            w.append((1/(result.e+ep))/ea)  
-
-        # linear version
-        #y_prob_0 = w1*ypro10 + w2*ypro20 + w3*ypro30 + w4*ypro40
-        #y_prob_1 = w1*ypro11 + w2*ypro21 + w3*ypro31 + w4*ypro41
-        #parallel version
+            w.append((1/(result.e+ep))/ea)
+ 
         y_prob_0 = 0
         y_prob_1 = 0
-        for i, result in enumerate(sorted_results):
-            y_prob_0 += w[i]*result.ypro0
-            y_prob_1 += w[i]*result.ypro1
-
+        for k, result in enumerate(sorted_results):
+            y_prob_0 += w[k]*result.ypro0
+            y_prob_1 += w[k]*result.ypro1
         if y_prob_0 > y_prob_1:
             y_pred = 0
         else:
@@ -186,14 +174,12 @@ if __name__ == "__main__":
 
         metric = metric.update(yi, y_pred)
         
-        t.append(k)
+        t.append(i)
         m.append(metric.get()*100)
         yt.append(yi)
         yp.append(y_pred)
-        k = k+1
+        i = i+1
         
-        # print(results)
-
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
