@@ -2,101 +2,80 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
 from river import stream
 from river import tree,ensemble,forest
 from river.drift import ADWIN
 from river.drift.binary import DDM
+from PIL import Image
+import os
 import time
 
-BATCH_SIZE = 600
+class AdaptiveModel:
+    def __init__(self, model, name):
+        self.model = model
+        self.name = name
+        self.metric = metrics.Accuracy()
+        self.history = {'t': [], 'accuracy': []}
 
-df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+    def learn(self, X, y):
+        start_time = time.time()
+        for xi, yi in stream.iter_pandas(X, y):
+            self.model.learn_one(xi, yi)
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"\nLearning for {self.name} took {duration:.2f} seconds\n") 
 
-# Train-test split
-# 10% training set, and 90% test set
-X = df.drop(['Label'],axis=1)
-y = df['Label']
-X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
+    def evaluate(self, X, y):
+        start_time = time.time()
+        true_labels = []
+        predicted_labels = []
+        for xi, yi in stream.iter_pandas(X, y):
+            y_pred = self.model.predict_one(xi)
+            self.model.learn_one(xi, yi)  # Online learning update
+            self.metric.update(yi, y_pred)
+            self.history['t'].append(len(self.history['t']))
+            self.history['accuracy'].append(self.metric.get() * 100)
+            true_labels.append(yi)
+            predicted_labels.append(y_pred)
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"{self.name}")
+        print(f"Evaluation for {self.name} took {duration:.2f} seconds")
+        print("Accuracy:", round(accuracy_score(true_labels, predicted_labels), 4) * 100, "%")
+        print("Precision:", round(precision_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
+        print("Recall:", round(recall_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
+        print("F1-score:", round(f1_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
 
-class batch_data:
-    def __init__(self, datasource, interval):
-        self.ds = datasource
-        self.interval = interval
-        self.done = False
-    def gen(self):
-        try:
-            for i in range(self.interval):
-                yield next(self.ds)
-        except StopIteration:
-            self.done = True
+    def plot_accuracy(self):
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.history['t'], self.history['accuracy'], label=f'Accuracy of {self.name}')
+        plt.legend(loc='best')
+        plt.title(f'Real-Time Accuracy of {self.name}')
+        plt.xlabel('Number of Samples')
+        plt.ylabel('Accuracy (%)')
 
-# Define a generic adaptive learning function
-# The argument "model" means an online adaptive learning algorithm
-def adaptive_learning(model, X_train, y_train, X_test, y_test):
-    metric = metrics.Accuracy() # Use accuracy as the metric
-    i = 0   # count the number of evaluated data points
-    t = []  # record the number of evaluated data points
-    m = []  # record the real-time accuracy
-    yt = [] # record all the true labels of the test set
-    yp = [] # record all the predicted labels of the test set
+        os.makedirs('result', exist_ok=True)
 
-    # Learn the training set
-    for xi1, yi1 in stream.iter_pandas(X_train, y_train):
-        model.learn_one(xi1,yi1)
+        plt.savefig(f'result/{self.name.replace(" ", "_")}_accuracy_plot.png')
+        plt.close()
 
-    # Predict the test set
-    data = batch_data(stream.iter_pandas(X_test, y_test), BATCH_SIZE)
-    while not data.done:
-        i1 = i
-        batch_pairs = []
-        for xi, yi in data.gen():
-            y_pred = model.predict_one(xi) # Predict the test sample
-            # model.learn_one(xi,yi)         # Learn the test sample
-            metric.update(yi, y_pred)      # Update the real-time accuracy, note: can we receive y1 on prod?
-            t.append(i)
-            m.append(metric.get()*100)
-            yt.append(yi)
-            yp.append(y_pred)
-            batch_pairs.append((xi, yi))
-            i = i+1
-        for j in range(i - i1):
-            model.learn_one(*batch_pairs[j])
-
-
-    # for xi, yi in stream.iter_pandas(X_test, y_test):
-    #     y_pred = model.predict_one(xi) # Predict the test sample
-    #     y_pred = yi
-    #     # model.learn_one(xi,yi)         # Learn the test sample
-    #     metric.update(yi, y_pred)      # Update the real-time accuracy, note: can we receive y1 on prod?
-    #     t.append(i)
-    #     m.append(metric.get()*100)
-    #     yt.append(yi)
-    #     yp.append(y_pred)
-    #     i = i+1
-    print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
-    print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
-    print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
-    print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
-    return t, m
-
-# Define a figure function that shows the real-time accuracy changes
-def acc_fig(t, m, name):
-    plt.rcParams.update({'font.size': 15})
+def plot_ensemble(t, m, name):
     plt.figure(1,figsize=(10,6))
-    plt.clf()
     plt.plot(t,m,'-b',label='Avg Accuracy: %.2f%%'%(m[-1]))
-
     plt.legend(loc='best')
-    plt.title(name+' on IoTID20 dataset', fontsize=15)
+    plt.title(f'Real-Time Accuracy of {name}')
     plt.xlabel('Number of samples')
     plt.ylabel('Accuracy (%)')
 
-    plt.draw()
+    os.makedirs('result', exist_ok=True)
+
+    plt.savefig(f'result/{name}_accuracy_plot.png')
+    plt.close()
 
 def PWPAE(X_train, y_train, X_test, y_test):
-    # Record the real-time accuracy of PWPAE and 4 base learners
     metric = metrics.Accuracy()
     metric1 = metrics.Accuracy()
     metric2 = metrics.Accuracy()
@@ -213,53 +192,71 @@ def PWPAE(X_train, y_train, X_test, y_test):
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
     return t, m
 
+def merge_results(directory='result', output_filename='merged_result.png'):
+    images = [img for img in os.listdir(directory) if img.endswith('.png')]
+    num_images = len(images)
+    
+    # For simplicity, create a grid that is roughly square
+    num_columns = int(num_images**0.5)
+    num_rows = (num_images + num_columns - 1) // num_columns
+    
+    if num_images == 0:
+        print("No PNG images found in the directory.")
+        return
+    
+    sample_image = Image.open(os.path.join(directory, images[0]))
+    img_width, img_height = sample_image.size
+    sample_image.close()
+    
+    merged_image = Image.new('RGB', (img_width * num_columns, img_height * num_rows), 'white')
+    
+    for index, img_name in enumerate(images):
+        img = Image.open(os.path.join(directory, img_name))
+        x_offset = (index % num_columns) * img_width
+        y_offset = (index // num_columns) * img_height
+        merged_image.paste(img, (x_offset, y_offset))
+        img.close()
+    
+    merged_image.save(os.path.join(directory, output_filename))
+    print(f"\n Merged image saved as {os.path.join(directory, output_filename)}.")
+
 def main():
-    name1 = "ARF-ADWIN model"
-    print('\n',name1)
-    model1 = forest.adaptive_random_forest.ARFClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
-    t, m1 = adaptive_learning(model1, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
+    df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+    X = df.drop(['Label'], axis=1)
+    y = df['Label']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
 
-    name2 = "ARF-DDM model"
-    print('\n',name2)
-    model2 = forest.adaptive_random_forest.ARFClassifier(n_models = 3, drift_detector = DDM()) # Define the model
-    t, m2 = adaptive_learning(model2, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m2, name2) # Draw the figure of how the real-time accuracy changes with the number of samples
+    print(dir(tree))
+    print(dir(ensemble))
+    models = [
+        AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-ARF-ADWIN"),
+        AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-ARF-DDM"),
+        AdaptiveModel(forest.aggregated_mondrian_forest.AMFClassifier(n_estimators=10), "IoT_2020-AMF"),
+        AdaptiveModel(tree.ExtremelyFastDecisionTreeClassifier(), "IoT_2020-EFDT"),
+        AdaptiveModel(tree.HoeffdingAdaptiveTreeClassifier(), "IoT_2020-HAT"),
+        AdaptiveModel(tree.HoeffdingTreeClassifier(), "IoT_2020-HTC"),
+        AdaptiveModel(tree.SGTClassifier(), "IoT_2020-SGT"),
+        AdaptiveModel(ensemble.ADWINBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADWIN-BA-HT"),
+        AdaptiveModel(ensemble.ADWINBoostingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADWIN-BO-HT"),
+        AdaptiveModel(ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADA-HT"),
+        AdaptiveModel(ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-BOLE-HT"),
+        AdaptiveModel(ensemble.BaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-BAG-HT"),
+        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LEVBAG-HT"),
+        AdaptiveModel(ensemble.SRPClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-SRP-HT"),
+        AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-SRP-ADWIN"),
+        AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-SRP-DDM"),
+    ]
 
-    name3 = "SRP-ADWIN model"
-    print('\n',name3)
-    model3 = ensemble.SRPClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
-    t, m3 = adaptive_learning(model3, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m3, name3) # Draw the figure of how the real-time accuracy changes with the number of samples
+    for model in models:
+        model.learn(X_train, y_train)
+        model.evaluate(X_test, y_test)
+        model.plot_accuracy()
 
-    name4 = "SRP-DDM model"
-    print('\n',name4)
-    model4 = ensemble.SRPClassifier(n_models = 3, drift_detector = DDM()) # Define the model
-    t, m4 = adaptive_learning(model4, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m4, name4) # Draw the figure of how the real-time accuracy changes with the number of samples
+    t, m = PWPAE(X_train, y_train, X_test, y_test)
+    plot_ensemble(t, m, "IoT_2020-PWPAE")
 
-    name5 = "EFDT model"
-    print('\n',name5)
-    model5 = tree.HoeffdingAdaptiveTreeClassifier() # Define the model
-    t, m5 = adaptive_learning(model5, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m5, name5) # Draw the figure of how the real-time accuracy changes with the number of samples
-
-    name6 = "HT model"
-    print('\n',name6)
-    model6 = tree.HoeffdingTreeClassifier() # Define the model
-    t, m6 = adaptive_learning(model6, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m6, name6) # Draw the figure of how the real-time accuracy changes with the number of samples
-
-    name7 = "LB model"
-    print('\n',name7)
-    model7 = ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(),n_models=3) # Define the model
-    t, m7 = adaptive_learning(model7, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m7, name7) # Draw the figure of how the real-time accuracy changes with the number of samples
-
-    name = "Proposed PWPAE model"
-    print('\n',name)
-    t, m = PWPAE(X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m, name) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # TODO: ensure merged_result.png has results stacked
+    merge_results(directory='result', output_filename='IoT_2020-merged-result.png')
 
 if __name__ == "__main__":
     main()
