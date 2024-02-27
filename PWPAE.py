@@ -12,6 +12,18 @@ from PIL import Image
 import os
 import time
 
+class batch_data:
+    def __init__(self, datasource, interval):
+        self.ds = datasource
+        self.interval = interval
+        self.done = False
+    def gen(self):
+        try:
+            for i in range(self.interval):
+                yield next(self.ds)
+        except StopIteration:
+            self.done = True
+
 class AdaptiveModel:
     def __init__(self, model, name):
         self.model = model
@@ -49,6 +61,38 @@ class AdaptiveModel:
         print("Recall:", round(recall_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
         print("F1-score:", round(f1_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
 
+    def evaluate_batch(self, X, y, batch_size):
+        start_time = time.time()
+        true_labels = []
+        predicted_labels = []
+        i = 0
+
+
+        data = batch_data(stream.iter_pandas(X, y), batch_size)
+        while not data.done:
+            i1 = i
+            batch_pairs = []
+            for xi, yi in data.gen():
+                y_pred = self.model.predict_one(xi)
+                self.metric.update(yi, y_pred)
+                self.history['t'].append(i)
+                self.history['accuracy'].append(self.metric.get() * 100)
+                true_labels.append(yi)
+                predicted_labels.append(y_pred)
+                batch_pairs.append((xi, yi))
+                i = i+1
+            for j in range(i - i1):
+                self.model.learn_one(*batch_pairs[j])
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"{self.name}")
+        print(f"Evaluation for {self.name} took {duration:.2f} seconds")
+        print("Accuracy:", round(accuracy_score(true_labels, predicted_labels), 4) * 100, "%")
+        print("Precision:", round(precision_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
+        print("Recall:", round(recall_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
+        print("F1-score:", round(f1_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
+
     def plot_accuracy(self):
         plt.figure(figsize=(10, 6))
         plt.plot(self.history['t'], self.history['accuracy'], label=f'Accuracy of {self.name}')
@@ -59,7 +103,7 @@ class AdaptiveModel:
 
         os.makedirs('result', exist_ok=True)
 
-        plt.savefig(f'result/{self.name.replace(" ", "_")}_accuracy_plot.png')
+        plt.savefig(f'result/{self.name.replace(" ", "_")}_accuracy_plot.png', bbox_inches='tight')
         plt.close()
 
 def plot_ensemble(t, m, name):
@@ -72,7 +116,7 @@ def plot_ensemble(t, m, name):
 
     os.makedirs('result', exist_ok=True)
 
-    plt.savefig(f'result/{name}_accuracy_plot.png')
+    plt.savefig(f'result/{name}_accuracy_plot.png', bbox_inches='tight')
     plt.close()
 
 def PWPAE(X_train, y_train, X_test, y_test):
@@ -249,7 +293,8 @@ def main():
 
     for model in models:
         model.learn(X_train, y_train)
-        model.evaluate(X_test, y_test)
+        # model.evaluate(X_test, y_test)
+        model.evaluate_batch(X_test, y_test, 600)
         model.plot_accuracy()
 
     t, m = PWPAE(X_train, y_train, X_test, y_test)
