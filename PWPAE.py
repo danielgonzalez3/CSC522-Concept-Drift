@@ -67,7 +67,7 @@ class AdaptiveModel:
         print("Recall:", recall, "%")
         print("F1-score:", f1, "%")
 
-        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1}
+        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1, "dur": duration}
 
     def evaluate_batch(self, X, y, batch_size):
         start_time = time.time()
@@ -282,14 +282,10 @@ def merge_results(directory='result', output_filename='merged_result.png'):
     print(f"\n Merged image saved as {os.path.join(directory, output_filename)}.")
 
 def main():
-    df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
-    X = df.drop(['Label'], axis=1)
-    y = df['Label']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
-
+    df1 = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+    df2 = pd.read_csv("./data/cic_0.01km.csv")
     run_count = 10
     run_res = []
-
     models = [
         AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-ARF-ADWIN"),
         AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-ARF-DDM"),
@@ -308,6 +304,15 @@ def main():
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-SRP-ADWIN"),
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-SRP-DDM"),
     ]
+
+    ###################
+    # IoT_2020 DATASET
+    ###################
+
+    X = df1.drop(['Label'], axis=1)
+    y = df1['Label']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
+
     for run in range(run_count):
         for model in models:
             model.learn(X_train, y_train)
@@ -315,9 +320,8 @@ def main():
             run_res.append(output)
             model.plot_accuracy()
 
-    fieldnames = ['name', 'accuracy', 'precision', 'recall', 'f1']
-    df_run = pd.DataFrame(run_res)
-    df_run.to_csv('run_result.csv')
+    df1_run = pd.DataFrame(run_res)
+    df1_run.to_csv('run_result_iot.csv')
 
 
     t, m = PWPAE(X_train, y_train, X_test, y_test)
@@ -325,6 +329,29 @@ def main():
 
     # TODO: ensure merged_result.png has results stacked
     merge_results(directory='result', output_filename='IoT_2020-merged-result.png')
+
+    #####################
+    # CICIDS2017 DATASET
+    #####################
+
+    X = df1.drop(['Label'], axis=1)
+    y = df1['Label']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
+    for run in range(run_count):
+        for model in models:
+            model.learn(X_train, y_train)
+            output = model.evaluate_batch(X_test, y_test, 600)
+            run_res.append(output)
+            model.plot_accuracy()
+
+    df2_run = pd.DataFrame(run_res)
+    df2_run.to_csv('run_result_cic.csv')
+
+    t, m = PWPAE(X_train, y_train, X_test, y_test)
+    plot_ensemble(t, m, "CIC_2020-PWPAE")
+
+    # TODO: ensure merged_result.png has results stacked
+    merge_results(directory='result', output_filename='CIC_2020-merged-result.png')
 
 if __name__ == "__main__":
     main()
