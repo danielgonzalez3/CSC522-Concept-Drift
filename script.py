@@ -156,10 +156,13 @@ def PWPAE(X_train, y_train, X_test, y_test):
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
     return t, m# %%time
 
+start = time.time()
 # Use the Performance Weighted Probability Averaging Ensemble (PWPAE) model 
 name = "Proposed PWPAE model"
 t, m = PWPAE(X_train, y_train, X_test, y_test) # Learn the model on the dataset
 acc_fig(t, m, name) # Draw the figure of how the real-time accuracy changes with the number of samples
+end = time.time()
+print("Time: "+str(end - start))
 
 
 plt.show()

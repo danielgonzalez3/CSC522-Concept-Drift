@@ -107,7 +107,7 @@ def cleanup(lock,conn,signum, frame):
 
 
 if __name__ == "__main__":
-    
+    start = time.time()
     models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
     
     # learn the models
@@ -201,6 +201,8 @@ if __name__ == "__main__":
 
     name = "Parallel"
     acc_fig(t, m, name)
+    end = time.time()
+    print("Time: "+str(end - start))
     plt.show()
 
     # print("Processing complete.")
