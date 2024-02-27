@@ -165,4 +165,4 @@ end = time.time()
 print("Time: "+str(end - start))
 
 
-plt.show()
+# plt.show()

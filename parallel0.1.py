@@ -203,6 +203,6 @@ if __name__ == "__main__":
     acc_fig(t, m, name)
     end = time.time()
     print("Time: "+str(end - start))
-    plt.show()
+    # plt.show()
 
     # print("Processing complete.")
