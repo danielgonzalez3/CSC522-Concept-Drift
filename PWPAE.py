@@ -55,11 +55,53 @@ class AdaptiveModel:
         end_time = time.time()
         duration = end_time - start_time
         print(f"{self.name}")
+
+        acc    = round(accuracy_score(true_labels, predicted_labels), 4) * 100
+        prec   = round(precision_score(true_labels, predicted_labels, average='macro'),4) * 100
+        recall = round(recall_score(true_labels, predicted_labels, average='macro'), 4) * 100
+        f1     = round(f1_score(true_labels, predicted_labels, average='macro'), 4) * 100
+
         print(f"Evaluation for {self.name} took {duration:.2f} seconds")
-        print("Accuracy:", round(accuracy_score(true_labels, predicted_labels), 4) * 100, "%")
-        print("Precision:", round(precision_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
-        print("Recall:", round(recall_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
-        print("F1-score:", round(f1_score(true_labels, predicted_labels, average='macro'), 4) * 100, "%")
+        print("Accuracy:", acc, "%")
+        print("Precision:", prec, "%")
+        print("Recall:", recall, "%")
+        print("F1-score:", f1, "%")
+
+        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1}
+
+    def evaluate_batch(self, X, y, batch_size):
+        start_time = time.time()
+        true_labels = []
+        predicted_labels = []
+        i = 0
+
+
+        data = batch_data(stream.iter_pandas(X, y), batch_size)
+        while not data.done:
+            i1 = i
+            batch_pairs = []
+            for xi, yi in data.gen():
+                y_pred = self.model.predict_one(xi)
+                self.metric.update(yi, y_pred)
+                self.history['t'].append(i)
+                self.history['accuracy'].append(self.metric.get() * 100)
+                true_labels.append(yi)
+                predicted_labels.append(y_pred)
+                batch_pairs.append((xi, yi))
+                i = i+1
+            for j in range(i - i1):
+                self.model.learn_one(*batch_pairs[j])
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"{self.name}")
+        print(f"Evaluation for {self.name} took {duration:.2f} seconds")
+        print("Accuracy:", acc, "%")
+        print("Precision:", prec, "%")
+        print("Recall:", recall, "%")
+        print("F1-score:", f1, "%")
+
+        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1}
 
     def evaluate_batch(self, X, y, batch_size):
         start_time = time.time()
@@ -270,8 +312,9 @@ def main():
     y = df['Label']
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
 
-    print(dir(tree))
-    print(dir(ensemble))
+    run_count = 10
+    run_res = []
+
     models = [
         AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-ARF-ADWIN"),
         AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-ARF-DDM"),
@@ -290,12 +333,17 @@ def main():
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-SRP-ADWIN"),
         AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-SRP-DDM"),
     ]
+    for run in range(run_count):
+        for model in models:
+            model.learn(X_train, y_train)
+            output = model.evaluate(X_test, y_test)
+            run_res.append(output)
+            model.plot_accuracy()
 
-    for model in models:
-        model.learn(X_train, y_train)
-        # model.evaluate(X_test, y_test)
-        model.evaluate_batch(X_test, y_test, 600)
-        model.plot_accuracy()
+    fieldnames = ['name', 'accuracy', 'precision', 'recall', 'f1']
+    df_run = pd.DataFrame(run_res)
+    df_run.to_csv('run_result.csv')
+
 
     t, m = PWPAE(X_train, y_train, X_test, y_test)
     plot_ensemble(t, m, "IoT_2020-PWPAE")
