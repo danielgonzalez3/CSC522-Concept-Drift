@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
 import time
@@ -56,7 +55,6 @@ X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_siz
 def acc_fig(t, m, name):
     plt.rcParams.update({'font.size': 15})
     plt.figure(1,figsize=(10,6)) 
-    sns.set_style("darkgrid")
     plt.clf() 
     plt.plot(t,m,'-b',label='Avg Accuracy: %.2f%%'%(m[-1]))
 
@@ -82,7 +80,7 @@ def worker(lock, worker_id, conn, model):
         y_prob = model.predict_proba_one(p_msg.xi)
         
         model.learn_one(p_msg.xi,p_msg.yi)
-        metricx = metricx.update(p_msg.yi, y_pred)
+        metricx.update(p_msg.yi, y_pred)
         e = 1 - metricx.get()
 
         if y_pred == 1:
@@ -177,7 +175,7 @@ if __name__ == "__main__":
         else:
             y_pred = 1
 
-        metric = metric.update(yi, y_pred)
+        metric.update(yi, y_pred)
         
         t.append(i)
         m.append(metric.get()*100)
