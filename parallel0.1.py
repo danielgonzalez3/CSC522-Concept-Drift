@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
-import lightgbm as lgb
 import time
 
 # Import the online learning metrics and algorithms from the River library
 from river import metrics
 from river import stream
-from river import tree,neighbors,naive_bayes,ensemble,linear_model
-from river.drift import DDM, ADWIN
+from river import tree,ensemble,forest
+from river.drift import ADWIN
+from river.drift.binary import DDM
 
 import multiprocessing
 import signal
@@ -70,7 +70,7 @@ def acc_fig(t, m, name):
 
 # Worker function that processes data with a given algorithm and considers the weight
 def worker(lock, worker_id, conn, model):
-    metric = metrics.Accuracy()
+    metricx = metrics.Accuracy()
 
     signal.signal(signal.SIGTERM, partial(cleanup,lock, conn))
 
@@ -82,8 +82,8 @@ def worker(lock, worker_id, conn, model):
         y_prob = model.predict_proba_one(p_msg.xi)
         
         model.learn_one(p_msg.xi,p_msg.yi)
-        metric = metric.update(p_msg.yi, y_pred)
-        e = 1 - metric.get()
+        metricx = metricx.update(p_msg.yi, y_pred)
+        e = 1 - metricx.get()
 
         if y_pred == 1:
             ypro0 = 1-y_prob[1]
@@ -108,8 +108,13 @@ def cleanup(lock,conn,signum, frame):
 
 if __name__ == "__main__":
     start = time.time()
-    models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
-    
+    # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
+    models = [
+        forest.adaptive_random_forest.ARFClassifier(n_models=3),
+        ensemble.SRPClassifier(n_models=3),
+        forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+    ]
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
         for model in models:

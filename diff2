@@ -1,0 +1,99 @@
+6a7
+> import lightgbm as lgb
+12,14c13,14
+< from river import tree,ensemble,forest
+< from river.drift import ADWIN
+< from river.drift.binary import DDM
+---
+> from river import tree,neighbors,naive_bayes,ensemble,linear_model
+> from river.drift import DDM, ADWIN
+85c85
+<         metric.update(p_msg.yi, y_pred)
+---
+>         metric = metric.update(p_msg.yi, y_pred)
+110,116c110,111
+<     
+<     models = [
+<         forest.adaptive_random_forest.ARFClassifier(n_models=3),
+<         ensemble.SRPClassifier(n_models=3),
+<         forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+<         ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+<     ]
+---
+>     start = time.time()
+>     models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
+119d113
+<     i = 0
+121d114
+<         i = i + 1
+129a123,129
+>     metric = metrics.Accuracy()
+> 
+>     i = 0
+>     t = []
+>     m = []
+>     yt = []
+>     yp = []
+141,145d140
+<     k = 0
+<     t = []
+<     m = []
+<     yt = []
+<     yp = []
+148c143
+<     for xi, yi in stream.iter_pandas(X_train, y_train):
+---
+>     for xi, yi in stream.iter_pandas(X_test, y_test):
+150d144
+<         metric = metrics.Accuracy()
+163,165d156
+<         # linear version
+<         # ea = 1/(e1+ep) + 1/(e2+ep) + 1/(e3+ep) + 1/(e4+ep)
+<         # parallel version
+169,172c160
+< 
+<         # linear version
+<         # w1 = (1/(e1+ep))/ea
+<         #parallel version
+---
+>         
+175,180c163,164
+<             w.append((1/(result.e+ep))/ea)  
+< 
+<         # linear version
+<         #y_prob_0 = w1*ypro10 + w2*ypro20 + w3*ypro30 + w4*ypro40
+<         #y_prob_1 = w1*ypro11 + w2*ypro21 + w3*ypro31 + w4*ypro41
+<         #parallel version
+---
+>             w.append((1/(result.e+ep))/ea)
+>  
+183,186c167,169
+<         for i, result in enumerate(sorted_results):
+<             y_prob_0 += w[i]*result.ypro0
+<             y_prob_1 += w[i]*result.ypro1
+< 
+---
+>         for k, result in enumerate(sorted_results):
+>             y_prob_0 += w[k]*result.ypro0
+>             y_prob_1 += w[k]*result.ypro1
+192c175
+<         metric.update(yi, y_pred)
+---
+>         metric = metric.update(yi, y_pred)
+194c177
+<         t.append(k)
+---
+>         t.append(i)
+198c181
+<         k = k+1
+---
+>         i = i+1
+200,201d182
+<         # print(results)
+< 
+223c204,206
+<     plt.show()
+---
+>     end = time.time()
+>     print("Time: "+str(end - start))
+>     # plt.show()
