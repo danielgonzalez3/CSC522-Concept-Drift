@@ -67,7 +67,7 @@ class AdaptiveModel:
         print("Recall:", recall, "%")
         print("F1-score:", f1, "%")
 
-        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1, "dur": duration}
+        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1, "duration_s": duration}
 
     def evaluate_batch(self, X, y, batch_size):
         start_time = time.time()
@@ -107,7 +107,7 @@ class AdaptiveModel:
         print("Recall:", recall, "%")
         print("F1-score:", f1, "%")
 
-        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1}
+        return {"name": self.name, "accuracy": acc, "precision": prec, "recall": recall, "f1": f1, "duration_s": duration}
 
 
     def plot_accuracy(self):
@@ -247,6 +247,7 @@ def PWPAE(X_train, y_train, X_test, y_test):
         yp.append(y_pred)
 
         i=i+1
+
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
@@ -322,7 +323,6 @@ def main():
 
     df1_run = pd.DataFrame(run_res)
     df1_run.to_csv('run_result_iot.csv')
-
 
     t, m = PWPAE(X_train, y_train, X_test, y_test)
     plot_ensemble(t, m, "IoT_2020-PWPAE")
