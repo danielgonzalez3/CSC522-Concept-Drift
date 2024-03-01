@@ -280,78 +280,60 @@ def merge_results(directory='result', output_filename='merged_result.png'):
         img.close()
     
     merged_image.save(os.path.join(directory, output_filename))
-    print(f"\n Merged image saved as {os.path.join(directory, output_filename)}.")
+    print(f"\nMerged image saved as {os.path.join(directory, output_filename)}.")
+
+def test_base_models(df, run_count, name):
+    run_res = []
+    models = [
+        AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=ADWIN()), f"{name}-ARF-ADWIN"),
+        AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=DDM()), f"{name}-ARF-DDM"),
+        AdaptiveModel(forest.aggregated_mondrian_forest.AMFClassifier(n_estimators=10), f"{name}-AMF"),
+        AdaptiveModel(tree.ExtremelyFastDecisionTreeClassifier(), f"{name}-EFDT"),
+        AdaptiveModel(tree.HoeffdingAdaptiveTreeClassifier(), f"{name}-HAT"),
+        AdaptiveModel(tree.HoeffdingTreeClassifier(), f"{name}-HTC"),
+        AdaptiveModel(tree.SGTClassifier(), f"{name}-SGT"),
+        AdaptiveModel(ensemble.ADWINBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}_-ADWIN-BA-HT"),
+        AdaptiveModel(ensemble.ADWINBoostingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}-ADWIN-BO-HT"),
+        AdaptiveModel(ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}-ADA-HT"),
+        AdaptiveModel(ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}-BOLE-HT"),
+        AdaptiveModel(ensemble.BaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}-BAG-HT"),
+        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}-LEVBAG-HT"),
+        AdaptiveModel(ensemble.SRPClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), f"{name}-SRP-HT"),
+        AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), f"{name}-SRP-ADWIN"),
+        AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), f"{name}-SRP-DDM"),
+    ]
+
+    X = df.drop(['Label'], axis=1)
+    y = df['Label']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
+
+    for run in range(run_count):
+        for model in models:
+            model.learn(X_train, y_train)
+            output = model.evaluate_batch(X_test, y_test, 600)
+            run_res.append(output)
+            model.plot_accuracy()
+
+    df_run = pd.DataFrame(run_res)
+    df_run.to_csv(f"{name}_run_result.csv")
+
+def test_ensemble(df, name):
+    X = df.drop(['Label'], axis=1)
+    y = df['Label']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
+    t, m = PWPAE(X_train, y_train, X_test, y_test)
+    plot_ensemble(t, m, name)
+    merge_results(directory='result', output_filename=f"{name}-merged-result.png")
 
 def main():
     df1 = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
     df2 = pd.read_csv("./data/cic_0.01km.csv")
-    run_count = 10
-    run_res = []
-    models = [
-        AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-ARF-ADWIN"),
-        AdaptiveModel(forest.adaptive_random_forest.ARFClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-ARF-DDM"),
-        AdaptiveModel(forest.aggregated_mondrian_forest.AMFClassifier(n_estimators=10), "IoT_2020-AMF"),
-        AdaptiveModel(tree.ExtremelyFastDecisionTreeClassifier(), "IoT_2020-EFDT"),
-        AdaptiveModel(tree.HoeffdingAdaptiveTreeClassifier(), "IoT_2020-HAT"),
-        AdaptiveModel(tree.HoeffdingTreeClassifier(), "IoT_2020-HTC"),
-        AdaptiveModel(tree.SGTClassifier(), "IoT_2020-SGT"),
-        AdaptiveModel(ensemble.ADWINBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADWIN-BA-HT"),
-        AdaptiveModel(ensemble.ADWINBoostingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADWIN-BO-HT"),
-        AdaptiveModel(ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-ADA-HT"),
-        AdaptiveModel(ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-BOLE-HT"),
-        AdaptiveModel(ensemble.BaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-BAG-HT"),
-        AdaptiveModel(ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-LEVBAG-HT"),
-        AdaptiveModel(ensemble.SRPClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3), "IoT_2020-SRP-HT"),
-        AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=ADWIN()), "IoT_2020-SRP-ADWIN"),
-        AdaptiveModel(ensemble.SRPClassifier(n_models=3, drift_detector=DDM()), "IoT_2020-SRP-DDM"),
-    ]
 
-    ###################
-    # IoT_2020 DATASET
-    ###################
+    test_base_models(df1, 10, "IoT_2020")
+    test_base_models(df2, 10, "CIC")
 
-    X = df1.drop(['Label'], axis=1)
-    y = df1['Label']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
-
-    for run in range(run_count):
-        for model in models:
-            model.learn(X_train, y_train)
-            output = model.evaluate_batch(X_test, y_test, 600)
-            run_res.append(output)
-            model.plot_accuracy()
-
-    df1_run = pd.DataFrame(run_res)
-    df1_run.to_csv('run_result_iot.csv')
-
-    t, m = PWPAE(X_train, y_train, X_test, y_test)
-    plot_ensemble(t, m, "IoT_2020-PWPAE")
-
-    # TODO: ensure merged_result.png has results stacked
-    merge_results(directory='result', output_filename='IoT_2020-merged-result.png')
-
-    #####################
-    # CICIDS2017 DATASET
-    #####################
-
-    X = df1.drop(['Label'], axis=1)
-    y = df1['Label']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
-    for run in range(run_count):
-        for model in models:
-            model.learn(X_train, y_train)
-            output = model.evaluate_batch(X_test, y_test, 600)
-            run_res.append(output)
-            model.plot_accuracy()
-
-    df2_run = pd.DataFrame(run_res)
-    df2_run.to_csv('run_result_cic.csv')
-
-    t, m = PWPAE(X_train, y_train, X_test, y_test)
-    plot_ensemble(t, m, "CIC_2020-PWPAE")
-
-    # TODO: ensure merged_result.png has results stacked
-    merge_results(directory='result', output_filename='CIC_2020-merged-result.png')
+    test_ensemble(df1, "IoT_2020")
+    test_ensemble(df2, "CIC")
 
 if __name__ == "__main__":
     main()

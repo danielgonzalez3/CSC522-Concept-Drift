@@ -1,4 +1,4 @@
-Flow Duration,Total Length of Fwd Packets,Fwd Packet Length Max,Fwd Packet Length Mean,Bwd Packet Length Max,Bwd Packet Length Min,Flow IAT Mean,Flow IAT Min,Fwd IAT Min,Fwd Header Length,Bwd Header Length,Fwd Packets/s,Bwd Packets/s,Min Packet Length,URG Flag Count,Down/Up Ratio,Init_Win_bytes_forward,Init_Win_bytes_backward,min_seg_size_forward,Labelb
+Flow Duration,Total Length of Fwd Packets,Fwd Packet Length Max,Fwd Packet Length Mean,Bwd Packet Length Max,Bwd Packet Length Min,Flow IAT Mean,Flow IAT Min,Fwd IAT Min,Fwd Header Length,Bwd Header Length,Fwd Packets/s,Bwd Packets/s,Min Packet Length,URG Flag Count,Down/Up Ratio,Init_Win_bytes_forward,Init_Win_bytes_backward,min_seg_size_forward,Label
 50833,0,0,0.0,0,0,50833.0,50833,0,32,32,19.67226015,19.67226015,0,1,1,319,153,32,0
 49,0,0,0.0,0,0,49.0,49,49,64,0,40816.32653,0.0,0,0,0,277,-1,32,0
 306,6,6,6.0,6,6,306.0,306,0,20,20,3267.973856,3267.973856,6,0,1,0,0,20,0
