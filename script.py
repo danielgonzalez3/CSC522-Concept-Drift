@@ -1,17 +1,16 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
-import lightgbm as lgb
 import time
 
 # Import the online learning metrics and algorithms from the River library
 from river import metrics
 from river import stream
-from river import tree,neighbors,naive_bayes,ensemble,linear_model
-from river.drift import DDM, ADWIN
+from river import tree,ensemble,forest
+from river.drift import ADWIN
+from river.drift.binary import DDM
 
 df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
@@ -25,7 +24,7 @@ X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_siz
 def acc_fig(t, m, name):
     plt.rcParams.update({'font.size': 15})
     plt.figure(1,figsize=(10,6)) 
-    sns.set_style("darkgrid")
+    # sns.set_style("darkgrid")
     plt.clf() 
     plt.plot(t,m,'-b',label='Avg Accuracy: %.2f%%'%(m[-1]))
 
@@ -52,9 +51,9 @@ def PWPAE(X_train, y_train, X_test, y_test):
     yt = []
     yp = []
 
-    hat1 = ensemble.AdaptiveRandomForestClassifier(n_models=3) # ARF-ADWIN
+    hat1 = forest.adaptive_random_forest.ARFClassifier(n_models=3) # ARF-ADWIN
     hat2 = ensemble.SRPClassifier(n_models=3) # SRP-ADWIN
-    hat3 = ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # ARF-DDM
+    hat3 = forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # ARF-DDM
     hat4 = ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # SRP-DDM
 
     # The four base learners learn the training set
@@ -84,10 +83,10 @@ def PWPAE(X_train, y_train, X_test, y_test):
         hat4.learn_one(xi,yi)
         
         # Record their real-time accuracy
-        metric1 = metric1.update(yi, y_pred1)
-        metric2 = metric2.update(yi, y_pred2)
-        metric3 = metric3.update(yi, y_pred3)
-        metric4 = metric4.update(yi, y_pred4)    
+        metric1.update(yi, y_pred1)
+        metric2.update(yi, y_pred2)
+        metric3.update(yi, y_pred3)
+        metric4.update(yi, y_pred4)    
 
         # Calculate the real-time error rates of four base learners
         e1 = 1-metric1.get()
@@ -142,7 +141,7 @@ def PWPAE(X_train, y_train, X_test, y_test):
             y_prob = y_prob_1
         
         # Update the real-time accuracy of the ensemble model
-        metric = metric.update(yi, y_pred)
+        metric.update(yi, y_pred)
 
         t.append(i)
         m.append(metric.get()*100)
