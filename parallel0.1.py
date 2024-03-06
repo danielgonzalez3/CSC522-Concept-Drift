@@ -44,12 +44,17 @@ class ChildMessage:
         return f"worker_id: {self.worker_id}, y_pred: {self.y_pred}, y_prob: {self.y_prob}"
 
 
-df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+# df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+# # split the data into train and test
+# X = df.drop(['Label'],axis=1)
+# y = df['Label']
+# X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
 
-# split the data into train and test
-X = df.drop(['Label'],axis=1)
-y = df['Label']
-X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+df = pd.read_csv("./data/cic_0.01km.csv")
+X = df.drop(['Labelb'],axis=1)
+y = df['Labelb']
+X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
+
 
 # Define a figure function that shows the real-time accuracy changes
 def acc_fig(t, m, name):
@@ -120,13 +125,24 @@ def cleanup(lock,conn,signum, frame):
 if __name__ == "__main__":
     start = time.time()
     # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
+    
+    #   PWPAE Models 
+    # models = [
+    #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
+    #     ensemble.SRPClassifier(n_models=3),
+    #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+    #     ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+    # ]
+
+    # Proposed Models
     models = [
         forest.adaptive_random_forest.ARFClassifier(n_models=3),
-        ensemble.SRPClassifier(n_models=3),
+        # ensemble.SRPClassifier(n_models=3),
+        ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
         forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+        ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+        # ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
     ]
-
 
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
