@@ -118,7 +118,9 @@ if __name__ == "__main__":
 
     # Optional: Wrap the model with preprocessing steps, such as normalization
     model = preprocessing.StandardScaler() | model
-
+    start = time.time()
     name = "Neural Network model"
     t, m5 = adaptive_learning(model, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m5, name) # Draw the figure of how the real-time accuracy changes with the number of samples
+    end = time.time()
+    print("Time: "+str(end - start))

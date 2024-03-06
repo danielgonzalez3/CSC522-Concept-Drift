@@ -1,43 +1,15 @@
-import torch
-import torch.nn as nn
-import river
-from river import compat
-from river import optim
-from river import preprocessing
-from river import compat
-from river import datasets
-from river import evaluate
-from river import metrics
-from river import preprocessing
-from torch import nn
-from torch import optim
-from torch import manual_seed
-# print(river.__version__)
-
-# Define a simple PyTorch neural network model for binary classification
-class SimpleNN(nn.Module):
-    def __init__(self, input_size):
-        super(SimpleNN, self).__init__()
-        self.dense1 = nn.Linear(input_size, 10)
-        self.relu = nn.ReLU()
-        self.dense2 = nn.Linear(10, 2)  # Assuming binary classification
-
-    def forward(self, x):
-        x = self.relu(self.dense1(x))
-        x = self.dense2(x)
-        return x
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
 from river import stream
-from river import tree,neighbors,naive_bayes,ensemble,linear_model
-from river.drift import DDM, ADWIN
-import lightgbm as lgb
+from river import tree,ensemble,forest
+from river.drift import ADWIN
+from river.drift.binary import DDM
+from PIL import Image
+import os
 import time
 
 import multiprocessing
@@ -100,15 +72,30 @@ def worker(lock, worker_id, conn, model):
 
     signal.signal(signal.SIGTERM, partial(cleanup,lock, conn))
 
+    batch_size = 600
+    batch_data = []
+    batch_labels = []
+
+
     while True:
         # receive parent message object
         p_msg = conn.recv()
         
+        batch_data.append(p_msg.xi)
+        batch_labels.append(p_msg.yi)
+
+        if (len(batch_data) == batch_size):
+            for xi, yi in zip(batch_data, batch_labels):
+                model.learn_one(xi,yi)
+            batch_data = []
+            batch_labels = []
+
+
         y_pred = model.predict_one(p_msg.xi)
         y_prob = model.predict_proba_one(p_msg.xi)
         
-        model.learn_one(p_msg.xi,p_msg.yi)
-        metricx=metricx.update(p_msg.yi, y_pred)
+        # model.learn_one(p_msg.xi,p_msg.yi)
+        metricx.update(p_msg.yi, y_pred)
         e = 1 - metricx.get()
 
         if y_pred == 1:
@@ -129,48 +116,17 @@ def cleanup(lock,conn,signum, frame):
     with lock:
         conn.close()
         sys.exit(0)
-_ = manual_seed(00)
-def build_pytorch_model(n_features):
-    net = nn.Sequential(
-        nn.Linear(n_features, 5),
-        nn.Linear(5,5),
-        nn.Linear(5,5),
-        nn.Linear(5,5),
-        nn.Linear(5,1),
-        nn.Sigmoid()
-    )
-    return net
 
 if __name__ == "__main__":
     start = time.time()
     # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
-    # models = [
-    #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
-    #     ensemble.SRPClassifier(n_models=3),
-    #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-    #     ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
-    # ]
+    models = [
+        forest.adaptive_random_forest.ARFClassifier(n_models=3),
+        ensemble.SRPClassifier(n_models=3),
+        forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+    ]
 
-    # Assuming X_train has your feature data to determine input size
-    input_size = X_train.shape[1]
-
-    # Initialize your PyTorch model
-    pytorch_model = SimpleNN(input_size=input_size)
-
-    # Wrap the PyTorch model with River's PyTorch2River
-    model = compat.PyTorch2RiverClassifier(
-        build_fn=build_pytorch_model,
-        loss_fn=nn.BCELoss,
-        optimizer=optim.Adam,  # Pass optimizer class, parameters are specified later
-        learning_rate=1e-3,  # Pass learning rate
-    )
-
-    # Optional: Wrap the model with preprocessing steps, such as normalization
-    model = preprocessing.StandardScaler() | model
-
-    # Now, you can use `model` in place of the ensemble models in your original code
-
-    models = [model]
 
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
@@ -236,7 +192,7 @@ if __name__ == "__main__":
         else:
             y_pred = 1
 
-        metric = metric.update(yi, y_pred)
+        metric.update(yi, y_pred)
         
         t.append(i)
         m.append(metric.get()*100)
