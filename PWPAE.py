@@ -254,6 +254,144 @@ def PWPAE(X_train, y_train, X_test, y_test):
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
     return t, m
 
+def PWPAE_batch(X_train, y_train, X_test, y_test, batch_size):
+    metric = metrics.Accuracy()
+    metric1 = metrics.Accuracy()
+    metric2 = metrics.Accuracy()
+    metric3 = metrics.Accuracy()
+    metric4 = metrics.Accuracy()
+
+    i=0
+    t = []
+    m = []
+    yt = []
+    yp = []
+
+    hat1 = forest.adaptive_random_forest.ARFClassifier(n_models=3) # ARF-ADWIN
+    hat2 = ensemble.SRPClassifier(n_models=3) # SRP-ADWIN
+    hat3 = forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # ARF-DDM
+    hat4 = ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()) # SRP-DDM
+
+    # The four base learners learn the training set
+    for xi1, yi1 in stream.iter_pandas(X_train, y_train):
+        hat1.learn_one(xi1,yi1)
+        hat2.learn_one(xi1,yi1)
+        hat3.learn_one(xi1,yi1)
+        hat4.learn_one(xi1,yi1)
+
+    e1 = 0
+    e2 = 0
+    e3 = 0
+    e4 = 0
+
+
+    ep = 0.001 # The epsilon used to avoid dividing by 0
+    # Calculate the weight of each base learner by the reciprocal of its real-time error rate
+    ea = 1/(e1+ep)+1/(e2+ep)+1/(e3+ep)+1/(e4+ep)
+    w1 = 1/(e1+ep)/ea
+    w2 = 1/(e2+ep)/ea
+    w3 = 1/(e3+ep)/ea
+    w4 = 1/(e4+ep)/ea
+    # Predict the test set
+    data = batch_data(stream.iter_pandas(X_test, y_test), batch_size)
+    while not data.done:
+        batched_data = []
+        for xi, yi in data.gen():
+            batched_data.append((xi, yi))
+            # The four base learner predict the labels
+            y_pred1= hat1.predict_one(xi)
+            y_prob1= hat1.predict_proba_one(xi)
+
+            y_pred2= hat2.predict_one(xi)
+            y_prob2= hat2.predict_proba_one(xi)
+
+            y_pred3= hat3.predict_one(xi)
+            y_prob3= hat3.predict_proba_one(xi)
+
+            y_pred4= hat4.predict_one(xi)
+            y_prob4= hat4.predict_proba_one(xi)
+
+            # Record their real-time accuracy
+            metric1.update(yi, y_pred1)
+            metric2.update(yi, y_pred2)
+            metric3.update(yi, y_pred3)
+            metric4.update(yi, y_pred4)
+
+            # Make ensemble predictions by the classification probabilities
+            if  y_pred1 == 1:
+                ypro10=1-y_prob1[1]
+                ypro11=y_prob1[1]
+            else:
+                ypro10=y_prob1[0]
+                ypro11=1-y_prob1[0]
+            if  y_pred2 == 1:
+                ypro20=1-y_prob2[1]
+                ypro21=y_prob2[1]
+            else:
+                ypro20=y_prob2[0]
+                ypro21=1-y_prob2[0]
+            if  y_pred3 == 1:
+                ypro30=1-y_prob3[1]
+                ypro31=y_prob3[1]
+            else:
+                ypro30=y_prob3[0]
+                ypro31=1-y_prob3[0]
+            if  y_pred4 == 1:
+                ypro40=1-y_prob4[1]
+                ypro41=y_prob4[1]
+            else:
+                ypro40=y_prob4[0]
+                ypro41=1-y_prob4[0]
+
+            # Calculate the final probabilities of classes 0 & 1 to make predictions
+            y_prob_0 = w1*ypro10+w2*ypro20+w3*ypro30+w4*ypro40
+            y_prob_1 = w1*ypro11+w2*ypro21+w3*ypro31+w4*ypro41
+
+            if (y_prob_0>y_prob_1):
+                y_pred = 0
+                y_prob = y_prob_0
+            else:
+                y_pred = 1
+                y_prob = y_prob_1
+
+            # Update the real-time accuracy of the ensemble model
+            metric.update(yi, y_pred)
+
+            t.append(i)
+            m.append(metric.get()*100)
+            yt.append(yi)
+            yp.append(y_pred)
+
+            i=i+1
+
+        for xi, yi in batched_data:
+            hat1.learn_one(xi,yi)
+            hat2.learn_one(xi,yi)
+            hat3.learn_one(xi,yi)
+            hat4.learn_one(xi,yi)
+            
+        # Calculate the error rates of four base learners
+        e1 = 1-metric1.get()
+        e2 = 1-metric2.get()
+        e3 = 1-metric3.get()
+        e4 = 1-metric4.get()
+
+
+        ep = 0.001 # The epsilon used to avoid dividing by 0
+        # Calculate the weight of each base learner by the reciprocal of its real-time error rate
+        ea = 1/(e1+ep)+1/(e2+ep)+1/(e3+ep)+1/(e4+ep)
+        w1 = 1/(e1+ep)/ea
+        w2 = 1/(e2+ep)/ea
+        w3 = 1/(e3+ep)/ea
+        w4 = 1/(e4+ep)/ea
+
+        
+    print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
+    print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
+    print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
+    print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
+    return t, m
+
 def merge_results(directory='result', output_filename='merged_result.png'):
     images = [img for img in os.listdir(directory) if img.endswith('.png')]
     num_images = len(images)
@@ -321,7 +459,7 @@ def test_ensemble(df, name):
     X = df.drop(['Label'], axis=1)
     y = df['Label']
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
-    t, m = PWPAE(X_train, y_train, X_test, y_test)
+    t, m = PWPAE_batch(X_train, y_train, X_test, y_test)
     plot_ensemble(t, m, name)
     merge_results(directory='result', output_filename=f"{name}-merged-result.png")
 
