@@ -3,22 +3,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
+# from sklearn.metrics import classification_report,confusion_matrix,accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from river import metrics
 from river import stream
-from river import tree,neighbors,naive_bayes,ensemble,linear_model
-from river.drift import DDM, ADWIN
-import lightgbm as lgb
+# from river import tree,neighbors,naive_bayes,ensemble,linear_model
+# from river.drift import DDM, ADWIN
+# import lightgbm as lgb
 import time
-import torch
+# import torch
 import torch.nn as nn
-import river
+# import river
 from river import compat
 from river import optim
 from river import preprocessing
 from river import compat
-from river import datasets
-from river import evaluate
+# from river import datasets
+# from river import evaluate
 from river import metrics
 from river import preprocessing
 from torch import nn
@@ -121,6 +122,6 @@ if __name__ == "__main__":
     start = time.time()
     name = "Neural Network model"
     t, m5 = adaptive_learning(model, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m5, name) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # acc_fig(t, m5, name) # Draw the figure of how the real-time accuracy changes with the number of samples
     end = time.time()
     print("Time: "+str(end - start))

@@ -221,11 +221,9 @@ if __name__ == "__main__":
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
     print("F1-score: "+str(round(f1_score(yt,yp),4)*100)+"%")
 
-
     # send sigterm to all processes
     for proc in processes:
         os.kill(proc.pid, signal.SIGTERM)
-
 
     # Close parent connections and join processes
     for conn in parent_connections:
