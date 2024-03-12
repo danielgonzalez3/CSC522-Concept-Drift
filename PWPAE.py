@@ -459,7 +459,7 @@ def test_ensemble(df, name):
     X = df.drop(['Label'], axis=1)
     y = df['Label']
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.1, test_size=0.9, shuffle=False, random_state=0)
-    t, m = PWPAE_batch(X_train, y_train, X_test, y_test)
+    t, m = PWPAE_batch(X_train, y_train, X_test, y_test, 600)
     plot_ensemble(t, m, name)
     merge_results(directory='result', output_filename=f"{name}-merged-result.png")
 
