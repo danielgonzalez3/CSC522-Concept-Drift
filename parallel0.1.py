@@ -81,6 +81,9 @@ def worker(lock, worker_id, conn, model):
     batch_data = []
     batch_labels = []
 
+    # e = 1 - metricx.get()
+    e = 0
+
 
     while True:
         # receive parent message object
@@ -94,14 +97,17 @@ def worker(lock, worker_id, conn, model):
                 model.learn_one(xi,yi)
             batch_data = []
             batch_labels = []
+            # error rate should only be evaluated after the batch is processed
+            metricx.update(p_msg.yi, y_pred)
+            e = 1 - metricx.get()
 
 
         y_pred = model.predict_one(p_msg.xi)
         y_prob = model.predict_proba_one(p_msg.xi)
         
         # model.learn_one(p_msg.xi,p_msg.yi)
-        metricx.update(p_msg.yi, y_pred)
-        e = 1 - metricx.get()
+        # metricx.update(p_msg.yi, y_pred)
+        # e = 1 - metricx.get()
 
         if y_pred == 1:
             ypro0 = 1-y_prob[1]
@@ -127,22 +133,22 @@ if __name__ == "__main__":
     # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
     
     #   PWPAE Models 
-    # models = [
-    #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
-    #     ensemble.SRPClassifier(n_models=3),
-    #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-    #     ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
-    # ]
-
-    # Proposed Models
     models = [
         forest.adaptive_random_forest.ARFClassifier(n_models=3),
-        # ensemble.SRPClassifier(n_models=3),
-        ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+        ensemble.SRPClassifier(n_models=3),
         forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-        ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
-        # ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
     ]
+
+    # Proposed Models
+    # models = [
+    #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
+    #     # ensemble.SRPClassifier(n_models=3),
+    #     ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+    #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+    #     ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+    #     # ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+    # ]
 
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
