@@ -11,13 +11,24 @@ from river.drift import DDM, ADWIN
 import lightgbm as lgb
 import time
 
-df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
+df = pd.read_csv("./data/6LoWPANHeader.csv")
 # split the data into train and test
 X = df.drop(['Label'],axis=1)
 y = df['Label']
 X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
 
+# df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+# # split the data into train and test
+# X = df.drop(['Label'],axis=1)
+# y = df['Label']
+# X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+
+
+# df = pd.read_csv("./data/cic_0.01km.csv")
+# X = df.drop(['Labelb'],axis=1)
+# y = df['Labelb']
+# X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
 
 # Define a figure function that shows the real-time accuracy changes
 def acc_fig(t, m, name):

@@ -43,6 +43,12 @@ class ChildMessage:
     def __repr__(self):
         return f"worker_id: {self.worker_id}, y_pred: {self.y_pred}, y_prob: {self.y_prob}"
 
+# df = pd.read_csv("./data/6LoWPANHeader.csv")
+# # split the data into train and test
+# X = df.drop(['Label'],axis=1)
+# y = df['Label']
+# X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+
 
 # df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 # # split the data into train and test
@@ -80,6 +86,7 @@ def worker(lock, worker_id, conn, model):
     batch_size = 600
     batch_data = []
     batch_labels = []
+    batch_predictions = []
 
     # e = 1 - metricx.get()
     e = 0
@@ -91,19 +98,24 @@ def worker(lock, worker_id, conn, model):
         
         batch_data.append(p_msg.xi)
         batch_labels.append(p_msg.yi)
+        
 
         if (len(batch_data) == batch_size):
-            for xi, yi in zip(batch_data, batch_labels):
+            print(f"Worker {worker_id} processing batch data")
+            for xi, yi, pred in zip(batch_data, batch_labels, batch_predictions):
                 model.learn_one(xi,yi)
+                metricx.update(p_msg.yi, pred)
+                e = 1 - metricx.get()
             batch_data = []
             batch_labels = []
             # error rate should only be evaluated after the batch is processed
-            metricx.update(p_msg.yi, y_pred)
-            e = 1 - metricx.get()
+
 
 
         y_pred = model.predict_one(p_msg.xi)
         y_prob = model.predict_proba_one(p_msg.xi)
+
+        batch_predictions.append(y_pred)
         
         # model.learn_one(p_msg.xi,p_msg.yi)
         # metricx.update(p_msg.yi, y_pred)
@@ -133,22 +145,20 @@ if __name__ == "__main__":
     # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
     
     #   PWPAE Models 
-    models = [
-        forest.adaptive_random_forest.ARFClassifier(n_models=3),
-        ensemble.SRPClassifier(n_models=3),
-        forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
-    ]
-
-    # Proposed Models
     # models = [
     #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
-    #     # ensemble.SRPClassifier(n_models=3),
-    #     ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+    #     ensemble.SRPClassifier(n_models=3),
     #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-    #     ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
-    #     # ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
+    #     ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
     # ]
+
+    # Proposed Models
+    models = [
+        forest.adaptive_random_forest.ARFClassifier(n_models=3),
+        ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+        forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+        ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+    ]
 
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
@@ -167,7 +177,7 @@ if __name__ == "__main__":
     m = []
     yt = []
     yp = []
-
+    
     # generate processes for each model
     for model in models:
         j = j + 1
@@ -178,6 +188,8 @@ if __name__ == "__main__":
         process = multiprocessing.Process(target=worker, args=(lock,j, child_conn, model))
         processes.append(process)
         process.start()
+
+    last_w = []
 
     # send data to each process and receive the results
     for xi, yi in stream.iter_pandas(X_test, y_test):
@@ -203,7 +215,24 @@ if __name__ == "__main__":
         w = []
         for result in sorted_results:
             w.append((1/(result.e+ep))/ea)
- 
+
+        # if length of w and last_w are the same
+        # iterate across each element and check if they are the same
+
+        # print(len(w))
+        # print(len(last_w))
+
+        if len(w) == len(last_w):
+            for x,y in zip(w,last_w):
+                if x != y:
+                    for z in w:
+                        print(z)
+                    break
+
+
+        last_w = w.copy()
+
+
         y_prob_0 = 0
         y_prob_1 = 0
         for k, result in enumerate(sorted_results):
@@ -221,6 +250,7 @@ if __name__ == "__main__":
         yt.append(yi)
         yp.append(y_pred)
         i = i+1
+        
         
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
@@ -244,5 +274,6 @@ if __name__ == "__main__":
     end = time.time()
     print("Time: "+str(end - start))
     # plt.show()
+
 
     # print("Processing complete.")

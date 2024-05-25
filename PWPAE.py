@@ -8,10 +8,10 @@ from river import metrics
 from river import stream
 from river import tree,neighbors,naive_bayes,ensemble,linear_model
 from river.drift import DDM, ADWIN
-import lightgbm as lgb
+# import lightgbm as lgb
 import time
 
-df = pd.read_csv("./sample_data/IoT_2020_b_0.01_fs.csv")
+df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
 # Train-test split
 # 10% training set, and 90% test set
@@ -94,6 +94,7 @@ def PWPAE(X_train, y_train, X_test, y_test):
         hat3.learn_one(xi1,yi1)
         hat4.learn_one(xi1,yi1)
 
+    w1_last = 0
     # Predict the test set
     for xi, yi in stream.iter_pandas(X_test, y_test):
         # The four base learner predict the labels
@@ -133,6 +134,11 @@ def PWPAE(X_train, y_train, X_test, y_test):
         w2 = 1/(e2+ep)/ea
         w3 = 1/(e3+ep)/ea
         w4 = 1/(e4+ep)/ea
+
+        if w1_last != w1:
+            print("weight change")
+
+        w1_last = w1
 
         # Make ensemble predictions by the classification probabilities
         if  y_pred1 == 1:
@@ -190,40 +196,40 @@ def PWPAE(X_train, y_train, X_test, y_test):
     return t, m
 
 def main():
-    name1 = "ARF-ADWIN model"
-    model1 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
-    t, m1 = adaptive_learning(model1, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name1 = "ARF-ADWIN model"
+    # model1 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
+    # t, m1 = adaptive_learning(model1, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m1, name1) # Draw the figure of how the real-time accuracy changes with the number of samples
 
-    name2 = "ARF-DDM model"
-    model2 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = DDM()) # Define the model
-    t, m2 = adaptive_learning(model2, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m2, name2) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name2 = "ARF-DDM model"
+    # model2 = ensemble.AdaptiveRandomForestClassifier(n_models = 3, drift_detector = DDM()) # Define the model
+    # t, m2 = adaptive_learning(model2, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m2, name2) # Draw the figure of how the real-time accuracy changes with the number of samples
 
-    name3 = "SRP-ADWIN model"
-    model3 = ensemble.SRPClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
-    t, m3 = adaptive_learning(model3, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m3, name3) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name3 = "SRP-ADWIN model"
+    # model3 = ensemble.SRPClassifier(n_models = 3, drift_detector = ADWIN()) # Define the model
+    # t, m3 = adaptive_learning(model3, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m3, name3) # Draw the figure of how the real-time accuracy changes with the number of samples
 
-    name4 = "SRP-DDM model"
-    model4 = ensemble.SRPClassifier(n_models = 3, drift_detector = DDM()) # Define the model
-    t, m4 = adaptive_learning(model4, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m4, name4) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name4 = "SRP-DDM model"
+    # model4 = ensemble.SRPClassifier(n_models = 3, drift_detector = DDM()) # Define the model
+    # t, m4 = adaptive_learning(model4, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m4, name4) # Draw the figure of how the real-time accuracy changes with the number of samples
 
-    name5 = "EFDT model"
-    model5 = tree.HoeffdingAdaptiveTreeClassifier() # Define the model
-    t, m5 = adaptive_learning(model5, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m5, name5) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name5 = "EFDT model"
+    # model5 = tree.HoeffdingAdaptiveTreeClassifier() # Define the model
+    # t, m5 = adaptive_learning(model5, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m5, name5) # Draw the figure of how the real-time accuracy changes with the number of samples
 
-    name6 = "HT model"
-    model6 = tree.HoeffdingTreeClassifier() # Define the model
-    t, m6 = adaptive_learning(model6, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m6, name6) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name6 = "HT model"
+    # model6 = tree.HoeffdingTreeClassifier() # Define the model
+    # t, m6 = adaptive_learning(model6, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m6, name6) # Draw the figure of how the real-time accuracy changes with the number of samples
 
-    name7 = "LB model"
-    model7 = ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(),n_models=3) # Define the model
-    t, m7 = adaptive_learning(model7, X_train, y_train, X_test, y_test) # Learn the model on the dataset
-    acc_fig(t, m7, name7) # Draw the figure of how the real-time accuracy changes with the number of samples
+    # name7 = "LB model"
+    # model7 = ensemble.LeveragingBaggingClassifier(model=tree.HoeffdingTreeClassifier(),n_models=3) # Define the model
+    # t, m7 = adaptive_learning(model7, X_train, y_train, X_test, y_test) # Learn the model on the dataset
+    # acc_fig(t, m7, name7) # Draw the figure of how the real-time accuracy changes with the number of samples
 
     name = "Proposed PWPAE model"
     t, m = PWPAE(X_train, y_train, X_test, y_test) # Learn the model on the dataset
