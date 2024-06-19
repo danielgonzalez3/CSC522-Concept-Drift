@@ -43,11 +43,11 @@ class ChildMessage:
     def __repr__(self):
         return f"worker_id: {self.worker_id}, y_pred: {self.y_pred}, y_prob: {self.y_prob}"
 
-# df = pd.read_csv("./data/6LoWPANHeader.csv")
-# # split the data into train and test
-# X = df.drop(['Label'],axis=1)
-# y = df['Label']
-# X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+df = pd.read_csv("./data/6LoWPANHeader.csv")
+# split the data into train and test
+X = df.drop(['Label'],axis=1)
+y = df['Label']
+X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
 
 
 # df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
@@ -56,10 +56,10 @@ class ChildMessage:
 # y = df['Label']
 # X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
 
-df = pd.read_csv("./data/cic_0.01km.csv")
-X = df.drop(['Labelb'],axis=1)
-y = df['Labelb']
-X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
+# df = pd.read_csv("./data/cic_0.01km.csv")
+# X = df.drop(['Labelb'],axis=1)
+# y = df['Labelb']
+# X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
 
 
 # Define a figure function that shows the real-time accuracy changes
@@ -101,7 +101,7 @@ def worker(lock, worker_id, conn, model):
         
 
         if (len(batch_data) == batch_size):
-            print(f"Worker {worker_id} processing batch data")
+            # print(f"Worker {worker_id} processing batch data")
             for xi, yi, pred in zip(batch_data, batch_labels, batch_predictions):
                 model.learn_one(xi,yi)
                 metricx.update(p_msg.yi, pred)
@@ -145,20 +145,20 @@ if __name__ == "__main__":
     # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
     
     #   PWPAE Models 
-    # models = [
-    #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
-    #     ensemble.SRPClassifier(n_models=3),
-    #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-    #     ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
-    # ]
-
-    # Proposed Models
     models = [
         forest.adaptive_random_forest.ARFClassifier(n_models=3),
-        ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+        ensemble.SRPClassifier(n_models=3),
         forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-        ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
     ]
+
+    # Proposed Models
+    # models = [
+    #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
+    #     ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+    #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+    #     ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+    # ]
 
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
@@ -222,12 +222,12 @@ if __name__ == "__main__":
         # print(len(w))
         # print(len(last_w))
 
-        if len(w) == len(last_w):
-            for x,y in zip(w,last_w):
-                if x != y:
-                    for z in w:
-                        print(z)
-                    break
+        # if len(w) == len(last_w):
+        #     for x,y in zip(w,last_w):
+        #         if x != y:
+        #             for z in w:
+        #                 print(z)
+        #             break
 
 
         last_w = w.copy()
