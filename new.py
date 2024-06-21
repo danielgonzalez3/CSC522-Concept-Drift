@@ -43,18 +43,18 @@ class ChildMessage:
     def __repr__(self):
         return f"worker_id: {self.worker_id}, y_pred: {self.y_pred}, y_prob: {self.y_prob}"
 
-df = pd.read_csv("./data/6LoWPANHeader.csv")
-# split the data into train and test
-X = df.drop(['Label'],axis=1)
-y = df['Label']
-X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
-
-
-# df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+# df = pd.read_csv("./data/6LoWPANHeader.csv")
 # # split the data into train and test
 # X = df.drop(['Label'],axis=1)
 # y = df['Label']
 # X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+
+
+df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+# split the data into train and test
+X = df.drop(['Label'],axis=1)
+y = df['Label']
+X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
 
 # df = pd.read_csv("./data/cic_0.01km.csv")
 # X = df.drop(['Labelb'],axis=1)
@@ -78,12 +78,12 @@ def acc_fig(t, m, name):
 
 
 # Worker function that processes data with a given algorithm and considers the weight
-def worker(lock, worker_id, conn, model):
+def worker(lock, worker_id, conn, model, batch_size):
     metricx = metrics.Accuracy()
 
     signal.signal(signal.SIGTERM, partial(cleanup,lock, conn))
 
-    batch_size = 600
+    # batch_size = 600
     batch_data = []
     batch_labels = []
     batch_predictions = []
@@ -140,25 +140,25 @@ def cleanup(lock,conn,signum, frame):
         conn.close()
         sys.exit(0)
 
-if __name__ == "__main__":
+def run(batch_size):
     start = time.time()
     # models = [ensemble.AdaptiveRandomForestClassifier(n_models=3),ensemble.SRPClassifier(n_models=3),ensemble.AdaptiveRandomForestClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())]
     
     #   PWPAE Models 
-    models = [
-        forest.adaptive_random_forest.ARFClassifier(n_models=3),
-        ensemble.SRPClassifier(n_models=3),
-        forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-        ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
-    ]
-
-    # Proposed Models
     # models = [
     #     forest.adaptive_random_forest.ARFClassifier(n_models=3),
-    #     ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+    #     ensemble.SRPClassifier(n_models=3),
     #     forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
-    #     ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+    #     ensemble.SRPClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM())
     # ]
+
+    # Proposed Models
+    models = [
+        forest.adaptive_random_forest.ARFClassifier(n_models=3),
+        ensemble.AdaBoostClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3),
+        forest.adaptive_random_forest.ARFClassifier(n_models=3,drift_detector=DDM(),warning_detector=DDM()),
+        ensemble.BOLEClassifier(model=tree.HoeffdingTreeClassifier(), n_models=3)
+    ]
 
     # learn the models
     for xi, yi in stream.iter_pandas(X_train, y_train):
@@ -185,7 +185,7 @@ if __name__ == "__main__":
         parent_connections.append(parent_conn)
         child_connections.append(child_conn)
 
-        process = multiprocessing.Process(target=worker, args=(lock,j, child_conn, model))
+        process = multiprocessing.Process(target=worker, args=(lock,j, child_conn, model, batch_size))
         processes.append(process)
         process.start()
 
@@ -251,7 +251,7 @@ if __name__ == "__main__":
         yp.append(y_pred)
         i = i+1
         
-        
+    print("parallel batched:")         
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
@@ -275,5 +275,26 @@ if __name__ == "__main__":
     print("Time: "+str(end - start))
     # plt.show()
 
-
+    # return accuracy precision recall f1 score and time
+    return round(accuracy_score(yt,yp),4)*100, round(precision_score(yt,yp),4)*100, round(recall_score(yt,yp),4)*100, round(f1_score(yt,yp),4)*100, end - start
     # print("Processing complete.")
+
+if __name__ == "__main__":
+    # run run() 5 times 
+    
+    s_values = [2000, 4000]  # List of different values for s
+
+    all_results = []
+
+    for s in s_values:
+        for i in range(5):
+            results = run(s)
+            print(results)
+            results_with_s = [s] + list(results)
+            all_results.append(results_with_s)
+
+    df = pd.DataFrame(all_results, columns=["s", "Accuracy", "Precision", "Recall", "F1-score", "Time"])
+    df.to_csv("results_with_s.csv", index=False)
+# 
+        # can you write the above to experiment changing s and writing to file with s included
+

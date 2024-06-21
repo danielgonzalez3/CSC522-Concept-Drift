@@ -13,8 +13,8 @@ import time
 
 df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
-# Train-test split
-# 10% training set, and 90% test set
+# # Train-test split
+# # 10% training set, and 90% test set
 X = df.drop(['Label'],axis=1)
 y = df['Label']
 X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
@@ -189,6 +189,7 @@ def PWPAE(X_train, y_train, X_test, y_test):
         yp.append(y_pred)
 
         i=i+1
+    print("serial online:")    
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")

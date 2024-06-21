@@ -11,13 +11,26 @@ from river.drift import DDM, ADWIN
 # import lightgbm as lgb
 import time
 
-df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
 
-# Train-test split
-# 10% training set, and 90% test set
+# # Train-test split
+# # 10% training set, and 90% test set
+df = pd.read_csv("./data/6LoWPANHeader.csv")
+# split the data into train and test
 X = df.drop(['Label'],axis=1)
 y = df['Label']
-X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
+X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+
+# df = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
+# # split the data into train and test
+# X = df.drop(['Label'],axis=1)
+# y = df['Label']
+# X_train, X_test, y_train, y_test = train_test_split(X,y,train_size=0.1, test_size = 0.9, shuffle=False, random_state = 0)
+
+
+# df = pd.read_csv("./data/cic_0.01km.csv")
+# X = df.drop(['Labelb'],axis=1)
+# y = df['Labelb']
+# X_train, X_test, y_train, y_test = train_test_split(X,y, train_size = 0.1, test_size = 0.9, shuffle=False,random_state = 0)
 
 # Define a generic adaptive learning function
 # The argument "model" means an online adaptive learning algorithm
@@ -95,24 +108,60 @@ def PWPAE(X_train, y_train, X_test, y_test):
         hat4.learn_one(xi1,yi1)
 
     w1_last = 0
+
+    # collect the predictions of the base learners for the 600 size batch unit
+    batch_predictions1 = []
+    batch_predictions2 = []
+    batch_predictions3 = []
+    batch_predictions4 = []
+    # collect the ground truth
+    # batch_labels = []
+
+    batch_size = 600
+    index = 0
+
     # Predict the test set
     for xi, yi in stream.iter_pandas(X_test, y_test):
+
+        if index == batch_size:
+            index = 0
+            # learn each base model on the banch_predictionsx and batch_labels
+            for pred1, pred2, pred3, pred4 in zip(batch_predictions1, batch_predictions2, batch_predictions3, batch_predictions4):
+                hat1.learn_one(pred1[0], pred1[1])
+                hat2.learn_one(pred2[0], pred2[1])
+                hat3.learn_one(pred3[0], pred3[1])
+                hat4.learn_one(pred4[0], pred4[1])
+            # clear the batch_predictions and batch_labels
+            batch_predictions1.clear()
+            batch_predictions2.clear()
+            batch_predictions3.clear()
+            batch_predictions4.clear()
+            # batch_labels.clear()
+            
+
         # The four base learner predict the labels
         y_pred1= hat1.predict_one(xi)
         y_prob1= hat1.predict_proba_one(xi)
-        hat1.learn_one(xi,yi)
+        batch_predictions1.append((xi, yi))
+        # hat1.learn_one(xi,yi)
 
         y_pred2= hat2.predict_one(xi)
         y_prob2= hat2.predict_proba_one(xi)
-        hat2.learn_one(xi,yi)
+        batch_predictions2.append((xi, yi))
+        # hat2.learn_one(xi,yi)
 
         y_pred3= hat3.predict_one(xi)
         y_prob3= hat3.predict_proba_one(xi)
-        hat3.learn_one(xi,yi)
+        batch_predictions3.append((xi, yi))
+        # hat3.learn_one(xi,yi)
 
         y_pred4= hat4.predict_one(xi)
         y_prob4= hat4.predict_proba_one(xi)
-        hat4.learn_one(xi,yi)
+        batch_predictions4.append((xi, yi))
+        # hat4.learn_one(xi,yi)
+
+        # batch_labels.append(yi)
+        index += 1
 
         # Record their real-time accuracy
         metric1 = metric1.update(yi, y_pred1)
@@ -135,8 +184,8 @@ def PWPAE(X_train, y_train, X_test, y_test):
         w3 = 1/(e3+ep)/ea
         w4 = 1/(e4+ep)/ea
 
-        if w1_last != w1:
-            print("weight change")
+        # if w1_last != w1:
+        #     print("weight change")
 
         w1_last = w1
 
@@ -189,6 +238,7 @@ def PWPAE(X_train, y_train, X_test, y_test):
         yp.append(y_pred)
 
         i=i+1
+    print("serial batched:")    
     print("Accuracy: "+str(round(accuracy_score(yt,yp),4)*100)+"%")
     print("Precision: "+str(round(precision_score(yt,yp),4)*100)+"%")
     print("Recall: "+str(round(recall_score(yt,yp),4)*100)+"%")
@@ -231,9 +281,12 @@ def main():
     # t, m7 = adaptive_learning(model7, X_train, y_train, X_test, y_test) # Learn the model on the dataset
     # acc_fig(t, m7, name7) # Draw the figure of how the real-time accuracy changes with the number of samples
 
+    start = time.time()
     name = "Proposed PWPAE model"
     t, m = PWPAE(X_train, y_train, X_test, y_test) # Learn the model on the dataset
     acc_fig(t, m, name) # Draw the figure of how the real-time accuracy changes with the number of samples
+    end = time.time()
+    print("Time: "+str(end - start))
 
 if __name__ == "__main__":
     main()
