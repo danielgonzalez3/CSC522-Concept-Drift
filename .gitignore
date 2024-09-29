@@ -160,4 +160,5 @@ cython_debug/
 #.idea/
 
 # remove if need to store new output
-# result/*
+result/*
+*_result.csv
