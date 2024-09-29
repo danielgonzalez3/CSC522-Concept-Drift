@@ -466,12 +466,15 @@ def test_ensemble(df, name):
 def main():
     df1 = pd.read_csv("./data/IoT_2020_b_0.01_fs.csv")
     df2 = pd.read_csv("./data/cic_0.01km.csv")
+    df3 = pd.read_csv("./data/6LoWPANHeader.csv")
 
     test_base_models(df1, 10, "IoT_2020")
     test_base_models(df2, 10, "CIC")
+    test_base_models(df2, 10, "6LoWPAN")
 
     test_ensemble(df1, "IoT_2020")
     test_ensemble(df2, "CIC")
+    test_ensemble(df2, "6LoWPAN")
 
 if __name__ == "__main__":
     main()
